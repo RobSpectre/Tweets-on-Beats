@@ -1,7 +1,22 @@
+'''
+Tweet2Beats Vox Generator
+Written by /rob and vincent
+Music Hack Day NYC 12 February 2011
+
+Usage:
+Execute script with text to receive a musical text-to-speech mp3.
+
+
+'''
+
+'''Modules'''
 import re, string
 import simplejson as json
 import urllib2
+import sys
 
+
+'''Objects'''
 class TweetFilter:
     '''          
     Implementation
@@ -36,7 +51,10 @@ class TweetFilter:
             t = t[:t.find(" ")]
         
             user = self.request("http://api.twitter.com/1/users/show.json?screen_name=" + t)
-            output = input.replace(t, user['name'])
+            if user:
+                output = input.replace(t, user['name'])
+            else:
+                output
             
         return output
     
@@ -70,3 +88,12 @@ class TweetFilter:
             return json.loads(data)
         else:
             return data
+
+'''Implementation'''
+if __name__ == "__main__":
+    try:
+        text = sys.argv[1]
+    except IndexError:
+        print "Usage: getvox.py \"String you want vox for.\""
+    filter = TweetFilter(text)
+    print filter.read()
