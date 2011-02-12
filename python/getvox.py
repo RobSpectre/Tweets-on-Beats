@@ -42,6 +42,9 @@ class TweetFilter:
             t = t[:t.find(" ")]
             output = input.replace(t, '')
             output = output[:-1]
+            return output
+        else:
+            return input
         return output
     
     def filterReplies(self, input):
@@ -88,6 +91,73 @@ class TweetFilter:
             return json.loads(data)
         else:
             return data
+        
+class Syllables:
+    '''
+    COPYRIGHT
+
+    Distributed under the same terms as Perl.
+    Contact the author with any questions.
+    
+    AUTHOR
+    Greg Fast 
+    Dispenser (python port)
+    
+     http://toolserver.org/~dispenser/sources/syllable.py
+    '''
+    def __init__(self, word):
+        self.syllables = self.syllable(word)
+        
+        self.SubSyl = (
+               'cial',
+               'tia',
+               'cius',
+               'cious',
+               'giu',              # belgium!
+               'ion',
+               'iou',
+               'sia$',
+               '.ely$',             # absolutely! (but not ely!)
+              )
+        self.AddSyl = ( 
+               'ia',
+               'riet',
+               'dien',
+               'iu',
+               'io',
+               'ii',
+               '[aeiouym]bl$',     # -Vble, plus -mble
+               '[aeiou]{3}',       # agreeable
+               '^mc',
+               'ism$',             # -isms
+               '([^aeiouy])\1l$',  # middle twiddle battle bottle, etc.
+               '[^l]lien',         # alien, salient [1]
+                   '^coa[dglx].',      # [2]
+               '[^gq]ua[^auieo]',  # i think this fixes more than it breaks
+                'dnt$',           # couldn't
+              )
+
+    def syllable(word):
+        word = word.lower()
+        word = word.replace('\'', '')    # fold contractions.  not very effective.
+        word = re.sub(r'e$', '', word);    # strip trailing "e"s
+        scrugg = re.split(r'[^aeiouy]+', word); # '-' should perhaps be added?
+        for i in scrugg:
+            if not i: 
+                scrugg.remove(i)
+        syl = 0;
+        # special cases
+        for syll in self.SubSyl:
+            if re.search(syll, word): syl -= 1
+        for syll in self.AddSyl:
+            if re.search(syll, word): syl += 1
+        if len(word)==1: syl +=1    # 'x'
+        # count vowel groupings
+        syl += len(scrugg)
+        return (syl or 1)    # got no vowels? ("the", "crwth")
+    
+    def read(self):
+        return self.syllables
 
 '''Implementation'''
 if __name__ == "__main__":
@@ -96,4 +166,6 @@ if __name__ == "__main__":
     except IndexError:
         print "Usage: getvox.py \"String you want vox for.\""
     filter = TweetFilter(text)
-    print filter.read()
+    text = filter.read()
+    print Syllables(text).read()
+    

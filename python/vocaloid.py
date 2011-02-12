@@ -187,7 +187,9 @@ class TweetFilter:
             t = t[:t.find(" ")]
             output = input.replace(t, '')
             output = output[:-1]
-        return output
+            return output
+        else:
+            return input
     
     def filterReplies(self, input):
         # Extract @reply
@@ -198,10 +200,9 @@ class TweetFilter:
             user = self.request("http://api.twitter.com/1/users/show.json?screen_name=" + t)
             if user:
                 output = input.replace(t, user['name'])
-            else:
-                output
-            
-        return output
+            return output
+        else:
+            return input
     
     def filterCharacters(self, input):
         pattern = re.compile('[^\'\s\w_]+')
