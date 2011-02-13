@@ -1,5 +1,11 @@
 import subprocess, midi
 from canoris import Canoris, Template, Task
+import syllables
+import re, string
+import simplejson as json
+import urllib2
+import sys
+import syllables
 
 '''
 at the character where you're encoding:
@@ -78,8 +84,12 @@ class VocaloidTask():
         self.midi_path = midi_path
         # drop in Rob's function here:
         filter = TweetFilter(text)
-        self.text = filter.read()
+        text = filter.read()
         # end Rob's function
+        # Process syllables
+        syllables = Syllables(text)
+        self.text = syllables.read()
+        # End process syllables
         self.sequence = self.__generate_sequence(
                             self.__espeak_to_vocaloid_phonemes(
                                 self.__get_espeak_output(text)),
@@ -235,6 +245,29 @@ class TweetFilter:
         else:
             return data
 
+class Syllables:
+    '''          
+    Implementation
+    text = "@dn0t I'll send that !@#$%#!@$girl home wit a smid-ile http://wtf.me/w00t"
+    syllables = Syllables(text)
+    print syllables.read()
+    '''
+    def __init__(self, text):
+        self.text = text
+        self.output = self.countSyllables(text)
+    
+    def countSyllables(self, input):
+        list =[]
+        for word in input.split(" "):
+            count = syllables.count(word)
+            list.append({
+                "word": word,
+                "count": count
+            })
+        return list
+    
+    def read(self):
+        return self.output
 
 '''
 
