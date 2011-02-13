@@ -34,18 +34,16 @@ def handle_tweet(user, text)
 #  mood = get_mood(text)
   # pick a midi
   # canoris midi,text -> speech
-  p 1
   voice_file = sing(text)
 #  voice_file = sing2(text)
-p 2
-  beat_file = "beat3.wav"
+  beat_file = "beats/#{Dir.new('beats').map { |x| x }[2..-1].sample}"
+  `sox #{beat_file} -c 1 beat.wav`
+  p beat_file
+  beat_file = "beat.wav"
   
   mix_file = mix(voice_file, beat_file)
-p 3
   track_url = upload(text, mix_file)
-p 4
   tweet!("@#{user} checkout out your beatified tweet", track_url)
-p 5
 end
 
 def sing(tweet)
@@ -62,7 +60,7 @@ def mix(voice_file, beat_file)
 end
 
 def upload(title, file)
-  p track = soundcloud_client.post("/tracks", :track => {
+  track = soundcloud_client.post("/tracks", :track => {
     :title => title,
     :asset_data => File.new(file)
   })
@@ -76,19 +74,13 @@ def tweet!(text, link)
 end
 
 def soundcloud_client
-  #return @client if @client
+  return @client if @client
   @client = Soundcloud.new({
     :client_id => "vr3PzfPLrjJ9ngajKYnLIw",
     :client_secret => "zxHGUHgl4noSTG9zPTTsNgC6ZCiBCuX9lym1pHx4",
     :username => "tweets-on-beats",
     :password => "test"
   })
-  p @client
-  
-  
-  p @client
-#  @client
-  
 end
 
 
