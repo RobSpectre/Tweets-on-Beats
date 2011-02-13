@@ -33,7 +33,7 @@ TRANSLATION_TABLE = {
         'g': 'g',               #
         'f': 'f',               #
         'v': 'v',               #
-        'T': 't',               #    thin
+        'T': 'T',               #    thin
         'D': 'D',               #    this
         's': 's',               #
         'z': 'z',               #
@@ -48,15 +48,15 @@ TRANSLATION_TABLE = {
         'j': 'j',               #    yes
         'w': 'w',               #
         '@': '@',               #    alpha    schwa
-        '3': '@',               #    better
-        '3:': 'U@',               #    nurse
-        '@L': 'l',               #    simple
+        '3': 'U@',               #    better
+        '3:': 'O@',               #    nurse
+        'L': 'l',               #    simple
         '@2': 'V',               #    the    Used only for "the".
         '@5': 'tU',              #    to    Used only for "to".
         'a': '{',               #    trap
         'a2': '@',               #    about    This may be '@'               # or may be a more open schwa.
         'A:': '@',               #    palm
-        'A@': 'A@',               #    start
+        'A@': 'Q@',               #    start
         'E': '{',               #    dress
         'e@': 'e@',               #    square
         'I': 'I',               #    kit
@@ -66,7 +66,7 @@ TRANSLATION_TABLE = {
         'i@': 'I@',               #    near
         '0': 'Q',               #    lot
         'V': 'V',               #    strut
-        'u:': 'u:',               #    goose
+        'u:': 'U',               #    goose
         'U': 'U',               #    foot
         'U@': 'U@',               #    cure
         'O:': 'O:',               #    thought
@@ -101,9 +101,10 @@ class VocaloidTask():
         p = subprocess.Popen(['espeak', '-x', '-q', text], stdout=subprocess.PIPE)
         p.wait()
         text_after_transform = p.communicate()[0][1:].replace("'", "").split(' ')
-        for i in range(len(input)):
+        valid_max_index = min(len(input), len(text_after_transform))
+        for i in range(valid_max_index):
             input[i]['word'] = text_after_transform[i]
-        return input
+        return input[0:valid_max_index]
 
     @staticmethod
     def __espeak_to_vocaloid_phonemes(input):
@@ -163,7 +164,7 @@ class VocaloidTask():
                 # make sure we don't run into an exception if the midi file
                 # is malformed (e.g. doesn't start with a noteon)
                 if len(events) > 0:
-                    events[-1]['d'] = float(event.time - last_time) #float(midifile.ticksPerQuarterNote)
+                    events[-1]['d'] = 60 #float(event.time - last_time) #float(midifile.ticksPerQuarterNote)
                 note_closed_p = True
                 last_time = event.time
             if event.type == 'NOTE_ON':
@@ -230,7 +231,6 @@ class VocaloidTask():
         for x in l:
             for y in x:
                 result.append(y)
-        print result
         return result
 
 class TweetFilter:
