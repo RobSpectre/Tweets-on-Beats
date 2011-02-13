@@ -18,6 +18,7 @@ import syllables
 import subprocess
 import hashlib
 import face_client
+import urllib
 
 '''Objects'''
 class TweetFilter:
@@ -151,16 +152,31 @@ class GenderDetect(face_client.FaceClient):
     def detect(self, uri):
         return self.faces_detect(uri)
     
-class Espeak:
+class Espeak(TweetFilter):
     def __init__(self, text, voice=5):
         self.text = text
         self.output = self.say(text, voice)
     
     def say(self, text, voice):
         hash = hashlib.md5(text).hexdigest()
+        path = "https://api.ispeech.org/api/rest/?"
+        params = {
+            'apikey': "38fcab81215eb701f711df929b793a89",
+            'action': "convert",
+            'voice': voice,
+            'text': text
+        }
+        
+        request = urllib2.Request(path, urllib.urlencode(params))
+        try:
+            r = urllib2.urlopen(request)
+        except urllib2.HTTPError, e:
+            print "Error!: " + str(e)
+            return False
+
+        data = r.read()
         f = open("/tmp/" + str(hash) + ".wav", 'wb')
-        p = subprocess.Popen(['espeak', '-v' + voice, '-s 130', '-p 40', '--stdout', text], stdout = f)
-        p.wait()
+        f.write(data)
         f.close()
         return str(hash) + ".wav"
 
@@ -177,8 +193,8 @@ if __name__ == "__main__":
         print "Usage: getvox.py \"String you want vox for.\""
     filter = TweetFilter(text,user).read()
     if filter['user']['gender'] == "male":
-        voice = "klatt"
+        voice = "usenglishmale1"
     else:
-        voice = "female4"
+        voice = "usenglishfemale1"
     espeak = Espeak(filter['text'], voice)
     print "/tmp/" + espeak.read()
