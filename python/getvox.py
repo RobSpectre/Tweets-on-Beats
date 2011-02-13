@@ -15,6 +15,8 @@ import simplejson as json
 import urllib2
 import sys
 import syllables
+import subprocess
+import hashlib
 
 '''Objects'''
 class TweetFilter:
@@ -107,14 +109,31 @@ class Syllables:
     
     def read(self):
         return self.output
+    
+class Espeak:
+    def __init__(self, text, voice=5):
+        self.text = text
+        self.output = self.say(text, voice)
+    
+    def say(self, text, voice):
+        hash = hashlib.md5(text).hexdigest()
+        f = open("cache/" + str(hash) + ".wav", 'wb')
+        p = subprocess.Popen(['espeak', '-v' + voice,'--stdout', text], stdout = f)
+        p.wait()
+        f.close()
+        return str(hash) + ".wav"
+
+    def read(self):
+        return self.output
+    
 
 '''Implementation'''
 if __name__ == "__main__":
     try:
         text = sys.argv[1]
+        voice = sys.argv[2]
     except IndexError:
         print "Usage: getvox.py \"String you want vox for.\""
     filter = TweetFilter(text)
-    text = filter.read()
-    dict = Syllables(text)
-    print dict.read()
+    espeak = Espeak(filter.read(), voice)
+    print "cache/" + espeak.read()
