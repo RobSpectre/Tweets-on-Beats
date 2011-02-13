@@ -14,7 +14,7 @@ from __future__ import with_statement
 
 import urllib
 import urllib2
-import json
+import simplejson as json
 import os.path
 
 API_URL    = 'http://api.face.com'
