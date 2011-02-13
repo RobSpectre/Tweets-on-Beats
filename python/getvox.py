@@ -165,7 +165,7 @@ class Espeak(TweetFilter):
             'action': "convert",
             'voice': voice,
             'text': text,
-            'format': wav
+            'format': "wav"
         }
         
         request = urllib2.Request(path, urllib.urlencode(params))
