@@ -5,7 +5,7 @@ import simplejson as json
 from canoris import Canoris, Task, File, CanorisException
 from time import time, sleep
 
-CANORIS_URL = 'http://localhost'
+CANORIS_URL = 'http://api.canoris.com'
 CANORIS_KEY = '867c069719dc45db930c7d9749de8659'
 
 GENERATE_LOCALLY = True
@@ -353,7 +353,7 @@ if __name__ == '__main__':
         print wav_file
         sys.exit()
     else:
-        can_task = Task.create_task('vocaloid', {'sequence': vt.sequence})
+        can_task = Task.create_task('vocaloid', {'sequence': vt.sequence, 'voice': 'LARA'})
         time_started = time()
         while time() - time_started < MAX_PROCESSING_TIME:
             try:
