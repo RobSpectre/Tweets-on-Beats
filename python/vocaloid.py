@@ -6,11 +6,8 @@ import face_client
 from canoris import Canoris, Task, File, CanorisException
 from time import time, sleep
 
-CANORIS_URL = 'http://localhost'
+CANORIS_URL = 'http://api.canoris.com'
 CANORIS_KEY = '867c069719dc45db930c7d9749de8659'
-
-TMP_DIR = '/tmp'
-NFS_BASEDIR = '/mnt/m30_local'
 
 GENERATE_LOCALLY = True
 
@@ -37,7 +34,7 @@ TRANSLATION_TABLE = {
         'g': 'g',               #
         'f': 'f',               #
         'v': 'v',               #
-        'T': 't',               #    thin
+        'T': 'T',               #    thin
         'D': 'D',               #    this
         's': 's',               #
         'z': 'z',               #
@@ -52,25 +49,25 @@ TRANSLATION_TABLE = {
         'j': 'j',               #    yes
         'w': 'w',               #
         '@': '@',               #    alpha    schwa
-        '3': '@',               #    better
-        '3:': 'U@',               #    nurse
-        '@L': 'l',               #    simple
+        '3': 'U@',               #    better
+        '3:': 'O@',               #    nurse
+        'L': 'l',               #    simple
         '@2': 'V',               #    the    Used only for "the".
         '@5': 'tU',              #    to    Used only for "to".
-        'a': '@',               #    trap
+        'a': '{',               #    trap
         'a2': '@',               #    about    This may be '@'               # or may be a more open schwa.
         'A:': '@',               #    palm
-        'A@': 'A@',               #    start
+        'A@': 'Q@',               #    start
         'E': '{',               #    dress
         'e@': 'e@',               #    square
         'I': 'I',               #    kit
         'I2': 'I',               #    intend    As 'I'               #, but also indicates an unstressed syllable.
-        'i':  'I',              #    happy    An unstressed "i" sound at the end of a word.
+        'i':  'i:',              #    happy    An unstressed "i" sound at the end of a word.
         'i:': 'i:',               #    fleece
         'i@': 'I@',               #    near
         '0': 'Q',               #    lot
         'V': 'V',               #    strut
-        'u:': 'u:',               #    goose
+        'u:': 'U',               #    goose
         'U': 'U',               #    foot
         'U@': 'U@',               #    cure
         'O:': 'O:',               #    thought
@@ -84,36 +81,33 @@ TRANSLATION_TABLE = {
         ' ': ' ',               # keep spaces!
                      }
 
-'''
-def init_canoris():
-    Canoris.set_api_key(CANORIS_KEY)
-    Canoris.set_base_uri(CANORIS_URL)
-    '''
-
 class VocaloidTask():
-    def __init__(self, text, midi_path, bpm):
+    def __init__(self, text, midi_path, bpm, transposition):
         self.midi_path = midi_path
         syllables = Syllables(text)
         self.text = syllables.read()
-        print self.text
+        self.gender = self.text['gender']
         events, ticklength = self.__process_midi_file(midi_path)
-        self.sequence = self.__generate_xml(self.__espeak_to_vocaloid_phonemes(
-                                                self.__get_espeak_output(self.text)),
-                                            events,
-                                            1.0/ticklength)
-        self.xml_file = self.__save_tmp_file(self.sequence)
-        self.wav_file = self.__generate_audio(self.xml_file)
+        self.sequence = self.__generate_sequence(
+                            self.__espeak_to_vocaloid_phonemes(
+                                self.__get_espeak_output(self.text['syllables'])),
+                            events,
+                            ticklength*(bpm/120.0))
+
+
 
 
     @staticmethod
     def __get_espeak_output(input):
         text = ' '.join([x['word'] for x in input])
+        text = text.replace("'", '')
         p = subprocess.Popen(['espeak', '-x', '-q', text], stdout=subprocess.PIPE)
         p.wait()
         text_after_transform = p.communicate()[0][1:].replace("'", "").split(' ')
-        for i in range(len(input)):
+        valid_max_index = min(len(input), len(text_after_transform))
+        for i in range(valid_max_index):
             input[i]['word'] = text_after_transform[i]
-        return input
+        return input[0:valid_max_index]
 
     @staticmethod
     def __espeak_to_vocaloid_phonemes(input):
@@ -173,7 +167,7 @@ class VocaloidTask():
                 # make sure we don't run into an exception if the midi file
                 # is malformed (e.g. doesn't start with a noteon)
                 if len(events) > 0:
-                    events[-1]['d'] = float(event.time - last_time) #float(midifile.ticksPerQuarterNote)
+                    events[-1]['d'] = 60 #float(event.time - last_time) #float(midifile.ticksPerQuarterNote)
                 note_closed_p = True
                 last_time = event.time
             if event.type == 'NOTE_ON':
@@ -374,7 +368,7 @@ def init_canoris():
     Canoris.set_base_uri(CANORIS_URL)
 
 if __name__ == '__main__':
-    if len(sys.argv) < 4:
+    if len(sys.argv) < 5:
         print """Usage: python vocaloid.py "<tweet text>" <midi_path> <bpm> <transposition>"""
 
     text = sys.argv[1] # """Hide your kids and hide your wife."""
