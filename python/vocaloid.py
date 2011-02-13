@@ -14,10 +14,8 @@ GENERATE_LOCALLY = True
 TMP_DIR = '/tmp'
 
 if GENERATE_LOCALLY:
-    NFS_BASEDIR = '/mnt/m30_local'
-    PROCESSING_VOCALOID_DIR          = os.path.join(NFS_BASEDIR, 'vocaloid')
-    PROCESSING_VOCALOID_DIR_CONFIG   = PROCESSING_VOCALOID_DIR.replace('/', '\\')
-    WINE_ENVIRONMENT                 = '/home/v/vocaloid/environment'
+    PROCESSING_VOCALOID_DIR          = '/home/v/vocaloid'
+    WINE_ENVIRONMENT                 = '/home/v/vocaloid/luggage_voc2'
     PROCESSING_VOCALOID_SOURCE_DIR   = os.path.join(PROCESSING_VOCALOID_DIR, 'bin')
 
 MAX_PROCESSING_TIME = 300 # in seconds
@@ -82,20 +80,17 @@ TRANSLATION_TABLE = {
                      }
 
 class VocaloidTask():
-    def __init__(self, text, midi_path, bpm, transposition):
+    def __init__(self, text, midi_path, bpm, transposition, user):
         self.midi_path = midi_path
-        syllables = Syllables(text)
-        self.text = syllables.read()
-        self.gender = self.text['gender']
+        filter = TweetFilter(text, user).read()
+        self.text = filter['syllables']
+        self.user = filter['user']
         events, ticklength = self.__process_midi_file(midi_path)
         self.sequence = self.__generate_sequence(
                             self.__espeak_to_vocaloid_phonemes(
-                                self.__get_espeak_output(self.text['syllables'])),
+                                self.__get_espeak_output(self.text)),
                             events,
                             ticklength*(bpm/120.0))
-
-
-
 
     @staticmethod
     def __get_espeak_output(input):

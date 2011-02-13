@@ -18,12 +18,12 @@ import os.path
 API_URL    = 'http://api.face.com'
 
 class FaceClient():
-    def __init__(self, api_key = None, api_secret = None):
+    def __init__(self, api_key = "d6d6f385db992b6a877d0bc9cc0087da", api_secret = "3699beb583b6835b865c0cc31216936b"):
         if not api_key or not api_secret:
             raise AttributeError('Missing api_key or api_secret argument')
 
-        self.api_key                 = "d6d6f385db992b6a877d0bc9cc0087da"
-        self.api_secret             = "3699beb583b6835b865c0cc31216936b"
+        self.api_key                = api_key
+        self.api_secret             = api_secret
         self.format                 = 'json'
 
         self.twitter_credentials    = None
