@@ -20,7 +20,7 @@ mix_tmp = temp_file
 `sox -G #{voice} -c 2 #{voice_tmp} rate 44100`
 `sox -G #{voice_tmp}  #{voice_tmp2} vol 2.3  delay #{offset.to_i} #{offset.to_i}`
 
-`sox #{beat} #{beat_tmp} trim 0 #{almost_full_length} vol 0.2`
+`sox #{beat} #{beat_tmp} trim 0 #{almost_full_length} vol 0.5`
 
 `sox -G -m  #{voice_tmp2} #{beat_tmp} #{mix_tmp}`
 `sox -G #{mix_tmp} outro.wav TweetBeat.wav`

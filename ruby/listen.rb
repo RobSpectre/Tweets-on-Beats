@@ -57,7 +57,7 @@ end
 
 def sing(tweet)
   file = "speech.aiff"
-  `say -v Fred ". . . . . . . . . . . #{tweet.gsub('"', '\"')}" -o #{file}`
+  `say  ". . . . . . . . . . . #{tweet.gsub('"', '\"')}" -o #{file}`
   `sox #{file} -c 2 speech.wav rate 44100`
   "speech.wav"
 end
