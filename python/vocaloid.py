@@ -85,10 +85,11 @@ class VocaloidTask():
         self.midi_path = midi_path
         syllables = Syllables(text)
         self.text = syllables.read()
+        self.gender = self.text['gender']
         events, ticklength = self.__process_midi_file(midi_path)
         self.sequence = self.__generate_sequence(
                             self.__espeak_to_vocaloid_phonemes(
-                                self.__get_espeak_output(self.text)),
+                                self.__get_espeak_output(self.text['syllables'])),
                             events,
                             ticklength*(bpm/120.0))
 
