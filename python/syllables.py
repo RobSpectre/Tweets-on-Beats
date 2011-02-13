@@ -137,8 +137,5 @@ def count(word):
 
     # Cache the syllable count
     fallback_cache[word] = count
-    
-    if count <= 0:
-        count = 1
-    
+
     return count
