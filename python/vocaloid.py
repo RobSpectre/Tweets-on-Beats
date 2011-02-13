@@ -1,23 +1,13 @@
 #from canoris import Canoris, Template, Task
 import subprocess, midi, subprocess, midi, re, urllib2, json, uuid, os, \
-<<<<<<< HEAD
-    string, sys, syllables, math
-import simplejson as json
-
-'''
-at the character where you're encoding:
-    do the next 2 characters represent a phoneme together?
-=======
     string, sys, syllables, math, traceback
 import simplejson as json
 import face_client
 from canoris import Canoris, Task, File, CanorisException
 from time import time, sleep
->>>>>>> bc2a1121cd3309eabf454d85fddf13a286ae92f4
 
 CANORIS_URL = 'http://localhost'
 CANORIS_KEY = '867c069719dc45db930c7d9749de8659'
-'''
 
 TMP_DIR = '/tmp'
 NFS_BASEDIR = '/mnt/m30_local'
