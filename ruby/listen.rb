@@ -39,7 +39,7 @@ def handle_tweet(user, text)
   #  mood = get_mood(text)
   # pick a midi
   # canoris midi,text -> speech
-  voice_file = sing(text) #  voice_file = sing2(text)
+  voice_file = sing(text, user) #  voice_file = sing2(text)
   #voice_file = "speech.wav"
 
   #beat_file = "beats/#{Dir.new('beats').map { |x| x }[2..-1].sample}"
@@ -55,11 +55,13 @@ rescue e
   p e
 end
 
-def sing(tweet)
-  file = "speech.aiff"
-  `say -v Fred ". . . . . . . . . . . #{tweet.gsub('"', '\"')}" -o #{file}`
+def sing(tweet, user)
+  #file = "speech.aiff"
+  #`say -v Fred ". . . . . . . . . . . #{tweet.gsub('"', '\"')}" -o #{file}`
+  file = `python ../python/getvox.py "#{tweet.gsub('"', '\"')}" #{user}`
   `sox #{file} -c 2 speech.wav rate 44100`
   "speech.wav"
+  
 end
 
 def mix(voice_file, beat_file)
