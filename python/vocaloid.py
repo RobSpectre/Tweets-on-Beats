@@ -1,25 +1,26 @@
 #from canoris import Canoris, Template, Task
 import subprocess, midi, subprocess, midi, re, urllib2, json, uuid, os, \
-    string, sys, syllables, math
+    string, sys, syllables, math, traceback
 import simplejson as json
-
-'''
-at the character where you're encoding:
-    do the next 2 characters represent a phoneme together?
+from canoris import Canoris, Task, File, CanorisException
+from time import time, sleep
 
 CANORIS_URL = 'http://localhost'
 CANORIS_KEY = '867c069719dc45db930c7d9749de8659'
-'''
+
+GENERATE_LOCALLY = True
 
 TMP_DIR = '/tmp'
-NFS_BASEDIR = '/mnt/m30_local'
 
-PROCESSING_VOCALOID_DIR          = os.path.join(NFS_BASEDIR, 'vocaloid')
-PROCESSING_VOCALOID_DIR_CONFIG   = PROCESSING_VOCALOID_DIR.replace('/', '\\')
-WINE_ENVIRONMENT                 = '/home/v/vocaloid/environment'
-PROCESSING_VOCALOID_SOURCE_DIR   = os.path.join(PROCESSING_VOCALOID_DIR, 'bin')
+if GENERATE_LOCALLY:
+    NFS_BASEDIR = '/mnt/m30_local'
+    PROCESSING_VOCALOID_DIR          = os.path.join(NFS_BASEDIR, 'vocaloid')
+    PROCESSING_VOCALOID_DIR_CONFIG   = PROCESSING_VOCALOID_DIR.replace('/', '\\')
+    WINE_ENVIRONMENT                 = '/home/v/vocaloid/environment'
+    PROCESSING_VOCALOID_SOURCE_DIR   = os.path.join(PROCESSING_VOCALOID_DIR, 'bin')
 
-TMP_DIR = '/tmp'
+MAX_PROCESSING_TIME = 300 # in seconds
+
 
 TRANSLATION_TABLE = {
         'p': 'p',               #
@@ -32,8 +33,8 @@ TRANSLATION_TABLE = {
         'g': 'g',               #
         'f': 'f',               #
         'v': 'v',               #
-        'T': 'T',               #    thin
-        'D': 'D',            #    this
+        'T': 't',               #    thin
+        'D': 'D',               #    this
         's': 's',               #
         'z': 'z',               #
         'S': 'S',               #    shop
@@ -50,9 +51,9 @@ TRANSLATION_TABLE = {
         '3': '@',               #    better
         '3:': 'U@',               #    nurse
         '@L': 'l',               #    simple
-        '@2': 'D',               #    the    Used only for "the".
+        '@2': 'V',               #    the    Used only for "the".
         '@5': 'tU',              #    to    Used only for "to".
-        'a': '@',               #    trap
+        'a': '{',               #    trap
         'a2': '@',               #    about    This may be '@'               # or may be a more open schwa.
         'A:': '@',               #    palm
         'A@': 'A@',               #    start
@@ -60,7 +61,7 @@ TRANSLATION_TABLE = {
         'e@': 'e@',               #    square
         'I': 'I',               #    kit
         'I2': 'I',               #    intend    As 'I'               #, but also indicates an unstressed syllable.
-        'i':  'I',              #    happy    An unstressed "i" sound at the end of a word.
+        'i':  'i:',              #    happy    An unstressed "i" sound at the end of a word.
         'i:': 'i:',               #    fleece
         'i@': 'I@',               #    near
         '0': 'Q',               #    lot
@@ -79,32 +80,27 @@ TRANSLATION_TABLE = {
         ' ': ' ',               # keep spaces!
                      }
 
-'''
-def init_canoris():
-    Canoris.set_api_key(CANORIS_KEY)
-    Canoris.set_base_uri(CANORIS_URL)
-    '''
-
 class VocaloidTask():
-    def __init__(self, text, midi_path, bpm):
+    def __init__(self, text, midi_path, bpm, transposition):
         self.midi_path = midi_path
         syllables = Syllables(text)
         self.text = syllables.read()
-        print self.text
         events, ticklength = self.__process_midi_file(midi_path)
-        self.sequence = self.__generate_xml(self.__espeak_to_vocaloid_phonemes(
-                                                self.__get_espeak_output(self.text)),
-                                            events,
-                                            1.0/ticklength)
-        self.xml_file = self.__save_tmp_file(self.sequence)
-        self.wav_file = self.__generate_audio(self.xml_file)
+        self.sequence = self.__generate_sequence(
+                            self.__espeak_to_vocaloid_phonemes(
+                                self.__get_espeak_output(self.text)),
+                            events,
+                            ticklength*(bpm/120.0))
+
+
 
     @staticmethod
     def __get_espeak_output(input):
         text = ' '.join([x['word'] for x in input])
+        text = text.replace("'", '')
         p = subprocess.Popen(['espeak', '-x', '-q', text], stdout=subprocess.PIPE)
         p.wait()
-        text_after_transform = p.communicate()[0].replace("'", "").split(' ')
+        text_after_transform = p.communicate()[0][1:].replace("'", "").split(' ')
         for i in range(len(input)):
             input[i]['word'] = text_after_transform[i]
         return input
@@ -126,24 +122,29 @@ class VocaloidTask():
                     still_to_translate = still_to_translate[1:]
                     if tt in TRANSLATION_TABLE:
                         intermediate_result.append(TRANSLATION_TABLE[tt])
-                        continue
                     else:
                         # we can't find the phoneme, let's drop it.
                         pass
+                # when we're on the first position in the syllable we should
+                # treat some phonemes differently
+                if len(intermediate_result) == 1:
+                    if intermediate_result[0] in ['p', 't', 'k', 'b', 'd', 'g']:
+                        intermediate_result[0] += 'h'
+                    elif intermediate_result[0] == 'l':
+                        intermediate_result[0] += '0'
             # check if we have some leftover intermediate_results
             if len(intermediate_result) > 0:
                 # make syllables into words
                 if word['count'] > 1:
                     # where do we split?
                     split_ratio = len(intermediate_result) / float(word['count'])
-                    split_at_every = math.floor(split_ratio)
+                    split_at_every = int(math.floor(split_ratio))
+                    #print word['count'], split_at_every, len(word['word']), word['word']
                     while len(intermediate_result) > 0:
                         result.append(intermediate_result[0:split_at_every])
                         intermediate_result = intermediate_result[split_at_every:]
                 else:
                     result.append(intermediate_result)
-
-        print result
         return result
 
     @staticmethod
@@ -170,8 +171,8 @@ class VocaloidTask():
                 new_note = {}
                 # if we're dealing with a note
                 if event.velocity > 0:
-                    new_note['v'] = event.velocity
-                    new_note['p'] = event.pitch
+                    new_note['v'] = int(event.velocity * 0.8)
+                    new_note['p'] = event.pitch - 12
                     new_note['r'] = False
                 else:
                     events[-1]['r'] = True
@@ -179,17 +180,16 @@ class VocaloidTask():
                 events.append(new_note)
         return events, midifile.ticksPerQuarterNote
 
-    @staticmethod
-    def __save_tmp_file(sequence):
+    def save_tmp_file(self):
         p = os.path.join(TMP_DIR, str(uuid.uuid4()))
         f = open(p, 'w')
-        f.write(sequence)
+        f.write(self.sequence)
         f.close()
         return p
 
     @staticmethod
-    def __generate_xml(syllables, melody, ticklength):
-        sequence = "<melody ticklength='%s'>" % ticklength
+    def __generate_sequence(syllables, melody, ticklength):
+        sequence = "<melody ticklength='%s'>" % float(1.0/ticklength)
         str_syllables = [' '.join(x) for x in syllables]
         syl_i = 0
         mel_i = 0
@@ -198,8 +198,10 @@ class VocaloidTask():
             if melody[mel_i]['r']:
                 sequence += "<rest duration='%s'/>" % melody[mel_i]['d']
             else:
+                #pitch = melody[mel_i]['p']
+                max_pitch = 58
                 sequence += "<note duration='%s' pitch='%s' velocity='%s' phonemes='%s'/>" % \
-                                (melody[mel_i]['d'], melody[mel_i]['p'], melody[mel_i]['v'], ' '.join(syllables[syl_i]))
+                                (melody[mel_i]['d'], min(melody[mel_i]['p'], max_pitch), melody[mel_i]['v'], ' '.join(syllables[syl_i]))
                 syl_i += 1
             mel_i += 1
 
@@ -207,7 +209,7 @@ class VocaloidTask():
         return sequence
 
     @staticmethod
-    def __generate_audio(input_file):
+    def generate_audio(input_file):
         output_file = p = os.path.join(TMP_DIR, str(uuid.uuid4())+'.wav')
         os.chdir(WINE_ENVIRONMENT)
         executable_full = os.path.join(WINE_ENVIRONMENT, 'VocaloidServer.exe')
@@ -221,6 +223,15 @@ class VocaloidTask():
             output_std, output_err = p.communicate()
             raise Exception("ProcessingError", 'error: ' + str(p_result) + ' ' + str(output_std) + "\n" + str(output_err))
         return output_file
+
+    @staticmethod
+    def __flatten_spanish_syllable_list(l):
+        result = []
+        for x in l:
+            for y in x:
+                result.append(y)
+        print result
+        return result
 
 class TweetFilter:
     '''
@@ -319,8 +330,57 @@ class Syllables:
     def read(self):
         return self.output
 
+def init_canoris():
+    Canoris.set_api_key(CANORIS_KEY)
+    Canoris.set_base_uri(CANORIS_URL)
+
 if __name__ == '__main__':
-    #init_canoris()
-    vt = VocaloidTask("Ain't no sunshine when she's gone It's not warm when she's away Ain't no sunshine when she's gone And she's always gone too long Anytime she goes away", '/home/v/Sounds/Godfather.mid', 1)
+    if len(sys.argv) < 4:
+        print """Usage: python vocaloid.py "<tweet text>" <midi_path> <bpm> <transposition>"""
+
+    text = sys.argv[1] # """Hide your kids and hide your wife."""
+    midi_path = sys.argv[2]
+    bpm = int(sys.argv[3])
+    transposition = int(sys.argv[4])
+
+    init_canoris()
+
+    vt = VocaloidTask(text, midi_path, bpm, transposition)
+
+    if GENERATE_LOCALLY:
+        xml_file = vt.save_tmp_file()
+        wav_file = vt.generate_audio(xml_file)
+        print wav_file
+        sys.exit()
+    else:
+        can_task = Task.create_task('vocaloid', {'sequence': vt.sequence})
+        time_started = time()
+        while time() - time_started < MAX_PROCESSING_TIME:
+            try:
+                try:
+                    can_task.update()
+                    if can_task['complete']:
+                        if can_task['successful']:
+                            # download file somewhere and return path
+                            can_file = File.get_file(can_task['output'])
+                            print can_file.retrieve(TMP_DIR, str(uuid.uuid4())+'.wav')[0]
+                            sys.exit()
+                        else:
+                            # exit with error
+                            sys.exit(1)
+                    else:
+                        sleep(2)
+                        continue
+                except CanorisException, e:
+                    if e.throttled:
+                        sleep(2)
+                        continue
+                    else:
+                        raise e
+            except Exception, e:
+                traceback.print_exc()
+                sys.exit(1)
+        # once we get here the time we're willing to wait on the processing is up
+        sys.exit(1)
 
 
