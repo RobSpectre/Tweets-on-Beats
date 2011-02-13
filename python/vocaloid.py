@@ -1,5 +1,7 @@
-import subprocess, midi, re, urllib2, json, uuid, os
 #from canoris import Canoris, Template, Task
+import subprocess, midi, subprocess, midi, re, urllib2, json, uuid, os, \
+    string, sys, syllables, math
+import simplejson as json
 
 '''
 at the character where you're encoding:
@@ -86,55 +88,62 @@ def init_canoris():
 class VocaloidTask():
     def __init__(self, text, midi_path, bpm):
         self.midi_path = midi_path
-        # drop in Rob's function here:
-        filter = TweetFilter(text)
-        self.text = filter.read()
-        # end Rob's function
+        syllables = Syllables(text)
+        self.text = syllables.read()
+        print self.text
         events, ticklength = self.__process_midi_file(midi_path)
         self.sequence = self.__generate_xml(self.__espeak_to_vocaloid_phonemes(
                                                 self.__get_espeak_output(self.text)),
                                             events,
                                             1.0/ticklength)
-        print self.sequence
         self.xml_file = self.__save_tmp_file(self.sequence)
         self.wav_file = self.__generate_audio(self.xml_file)
-        print self.wav_file
 
     @staticmethod
     def __get_espeak_output(input):
-        p = subprocess.Popen(['espeak', '-x', '-q', input], stdout=subprocess.PIPE)
+        text = ' '.join([x['word'] for x in input])
+        p = subprocess.Popen(['espeak', '-x', '-q', text], stdout=subprocess.PIPE)
         p.wait()
-        return p.communicate()[0].replace("'", "")
+        text_after_transform = p.communicate()[0].replace("'", "").split(' ')
+        for i in range(len(input)):
+            input[i]['word'] = text_after_transform[i]
+        return input
 
     @staticmethod
     def __espeak_to_vocaloid_phonemes(input):
         result = []
-        intermediate_result = []
-        still_to_translate = input
-        while len(still_to_translate) > 0:
-            if still_to_translate[0] == ' ':
-                still_to_translate = still_to_translate[1:]
-                if len(intermediate_result) > 0:
-                    result.append(intermediate_result)
-                intermediate_result = []
-                continue
-            # take the first 2 characters, see if it's present in the map
-            if len(still_to_translate) > 1 and still_to_translate[0:2] in TRANSLATION_TABLE:
-                intermediate_result.append(TRANSLATION_TABLE[still_to_translate[0:2]])
-                still_to_translate = still_to_translate[2:]
-                continue
-            else:
-                tt = still_to_translate[0]
-                still_to_translate = still_to_translate[1:]
-                if tt in TRANSLATION_TABLE:
-                    intermediate_result.append(TRANSLATION_TABLE[tt])
+        for word in input:
+            intermediate_result = []
+            still_to_translate = word['word'][:]
+            while len(still_to_translate) > 0:
+                # take the first 2 characters, see if it's present in the map
+                if len(still_to_translate) > 1 and still_to_translate[0:2] in TRANSLATION_TABLE:
+                    intermediate_result.append(TRANSLATION_TABLE[still_to_translate[0:2]])
+                    still_to_translate = still_to_translate[2:]
                     continue
                 else:
-                    # we can't find the phoneme, let's drop it.
-                    pass
-        # check if we have some leftover intermediate_results
-        if len(intermediate_result) > 0:
-            result.append(intermediate_result)
+                    tt = still_to_translate[0]
+                    still_to_translate = still_to_translate[1:]
+                    if tt in TRANSLATION_TABLE:
+                        intermediate_result.append(TRANSLATION_TABLE[tt])
+                        continue
+                    else:
+                        # we can't find the phoneme, let's drop it.
+                        pass
+            # check if we have some leftover intermediate_results
+            if len(intermediate_result) > 0:
+                # make syllables into words
+                if word['count'] > 1:
+                    # where do we split?
+                    split_ratio = len(intermediate_result) / float(word['count'])
+                    split_at_every = math.floor(split_ratio)
+                    while len(intermediate_result) > 0:
+                        result.append(intermediate_result[0:split_at_every])
+                        intermediate_result = intermediate_result[split_at_every:]
+                else:
+                    result.append(intermediate_result)
+
+        print result
         return result
 
     @staticmethod
@@ -286,9 +295,32 @@ class TweetFilter:
         else:
             return data
 
+class Syllables:
+    '''
+    Implementation
+    text = "@dn0t I'll send that !@#$%#!@$girl home wit a smid-ile http://wtf.me/w00t"
+    syllables = Syllables(text)
+    print syllables.read()
+    '''
+    def __init__(self, text):
+        self.text = text
+        self.output = self.countSyllables(text)
+
+    def countSyllables(self, input):
+        list =[]
+        for word in input.split(" "):
+            count = syllables.count(word)
+            list.append({
+                "word": word,
+                "count": count
+            })
+        return list
+
+    def read(self):
+        return self.output
 
 if __name__ == '__main__':
     #init_canoris()
-    vt = VocaloidTask('This is a tweet', '/home/v/Sounds/Godfather.mid', 1)
+    vt = VocaloidTask("Ain't no sunshine when she's gone It's not warm when she's away Ain't no sunshine when she's gone And she's always gone too long Anytime she goes away", '/home/v/Sounds/Godfather.mid', 1)
 
 
