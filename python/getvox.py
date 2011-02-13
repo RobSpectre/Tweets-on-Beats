@@ -81,14 +81,18 @@ class TweetFilter:
 
     def getUser(self, username):
         user = self.request("http://api.twitter.com/1/users/show.json?screen_name=" + username)
+        print user
         if not user:
             return False
 
         # Try to fetch gender
         myDetector = GenderDetect()
         uri = user['profile_image_url'].replace("_normal", "")
-        detection = myDetector.detect(uri)
-        if detection['status']:
+        try:
+            detection = myDetector.detect(uri)
+        except FaceError:
+            gender = "neuter"
+        if detection['status'] and gender != "neuter":
             try:
                 gender = detection['photos'][0]['tags'][0]['attributes']['gender']['value']
             except KeyError:
