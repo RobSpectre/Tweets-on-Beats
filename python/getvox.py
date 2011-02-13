@@ -118,7 +118,7 @@ class Espeak:
     def say(self, text, voice):
         hash = hashlib.md5(text).hexdigest()
         f = open("cache/" + str(hash) + ".wav", 'wb')
-        p = subprocess.Popen(['espeak', '-v' + voice,'--stdout', text], stdout = f)
+        p = subprocess.Popen(['espeak', '-v' + voice, '-s 130', '-p 40', '--stdout', text], stdout = f)
         p.wait()
         f.close()
         return str(hash) + ".wav"
