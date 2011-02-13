@@ -151,12 +151,12 @@ class Syllables:
 class GenderDetect(face_client.FaceClient):
     def detect(self, uri):
         return self.faces_detect(uri)
-    
+
 class Espeak(TweetFilter):
     def __init__(self, text, voice=5):
         self.text = text
         self.output = self.say(text, voice)
-    
+
     def say(self, text, voice):
         hash = hashlib.md5(text).hexdigest()
         path = "https://api.ispeech.org/api/rest/?"
@@ -166,7 +166,7 @@ class Espeak(TweetFilter):
             'voice': voice,
             'text': text
         }
-        
+
         request = urllib2.Request(path, urllib.urlencode(params))
         try:
             r = urllib2.urlopen(request)
@@ -182,7 +182,7 @@ class Espeak(TweetFilter):
 
     def read(self):
         return self.output
-    
+
 
 '''Implementation'''
 if __name__ == "__main__":
@@ -197,4 +197,6 @@ if __name__ == "__main__":
     else:
         voice = "usenglishfemale1"
     espeak = Espeak(filter['text'], voice)
-    print "/tmp/" + espeak.read()
+    mp3_file = "/tmp/" + espeak.read()
+    p = subprocess.Popen(['lame', '--decode', mp3_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print mp3_file+'.wav'
