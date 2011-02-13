@@ -164,8 +164,7 @@ class Espeak(TweetFilter):
             'apikey': "38fcab81215eb701f711df929b793a89",
             'action': "convert",
             'voice': voice,
-            'text': text,
-            'format': "wav"
+            'text': text
         }
         
         request = urllib2.Request(path, urllib.urlencode(params))
@@ -176,10 +175,10 @@ class Espeak(TweetFilter):
             return False
 
         data = r.read()
-        f = open("/tmp/" + str(hash) + ".wav", 'wb')
+        f = open("/tmp/" + str(hash) + ".mp3", 'wb')
         f.write(data)
         f.close()
-        return str(hash) + ".wav"
+        return str(hash) + ".mp3"
 
     def read(self):
         return self.output
