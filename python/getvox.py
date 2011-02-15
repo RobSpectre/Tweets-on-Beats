@@ -180,7 +180,6 @@ class Espeak(TweetFilter):
             'action': "convert",
             'voice': voice,
             'speed': -2,
-            'startpadding': 1,
             'text': text
         }
 
