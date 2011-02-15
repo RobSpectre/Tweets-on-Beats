@@ -31,17 +31,20 @@ class TweetFilter:
     def __init__(self, text, username):
         self.text = text
         self.output = self.filterTweet(text)
-        self.syllables = Syllables(text)
-        self.user = self.getUser(username)
+        if self.output:
+            self.syllables = Syllables(text)
+            self.user = self.getUser(username)
 
     def filterTweet(self, input):
-        input = self.filterUris(input)
-        input = self.filterReplies(input)
-        input = self.filterTags(input)
-        input = self.filterCharacters(input)
-
-        output = input
-        return output
+        if "RT" not in input:
+            input = self.filterUris(input)
+            input = self.filterReplies(input)
+            input = self.filterTags(input)
+            input = self.filterCharacters(input)   
+            output = input
+            return output
+        else:
+            return False
 
     def filterUris(self, input):
         if "http" in input:
@@ -85,11 +88,12 @@ class TweetFilter:
         self.stub = True
 
     def read(self):
-        return {
-                'text': self.output,
-                'user': self.user,
-                'syllables': self.syllables.read()
-        }
+        if self.output:
+            return {
+                    'text': self.output,
+                    'user': self.user,
+                    'syllables': self.syllables.read()
+            }
 
     def getUser(self, username):
         user = self.request("http://api.twitter.com/1/users/show.json?screen_name=" + username)
@@ -203,9 +207,12 @@ if __name__ == "__main__":
     except IndexError:
         print "Usage: getvox.py \"String you want vox for.\""
     filter = TweetFilter(text,user).read()
-    if filter['user']['gender'] == "male":
-        voice = "usenglishmale1"
+    if filter:
+        if filter['user']['gender'] == "male":
+            voice = "usenglishmale1"
+        else:
+            voice = "usenglishfemale1"
+        espeak = Espeak(filter['text'], voice)
+        print "/tmp/" + espeak.read()
     else:
-        voice = "usenglishfemale1"
-    espeak = Espeak(filter['text'], voice)
-    print "/tmp/" + espeak.read()
+        print False
