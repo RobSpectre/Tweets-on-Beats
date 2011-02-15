@@ -208,4 +208,4 @@ if __name__ == "__main__":
     else:
         voice = "usenglishfemale1"
     espeak = Espeak(filter['text'], voice)
-    print espeak.read()
+    print "/tmp/" + espeak.read()
