@@ -208,6 +208,4 @@ if __name__ == "__main__":
     else:
         voice = "usenglishfemale1"
     espeak = Espeak(filter['text'], voice)
-    mp3_file = "/tmp/" + espeak.read()
-    p = subprocess.Popen(['lame', '--decode', mp3_file], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    print mp3_file+'.wav'
+    print espeak.read()
