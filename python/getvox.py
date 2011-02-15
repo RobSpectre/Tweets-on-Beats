@@ -179,7 +179,8 @@ class Espeak(TweetFilter):
             'apikey': "38fcab81215eb701f711df929b793a89",
             'action': "convert",
             'voice': voice,
-            'speed': -3,
+            'speed': -2,
+            'startpadding': 1,
             'text': text
         }
 
