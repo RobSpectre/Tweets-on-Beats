@@ -37,6 +37,7 @@ class TweetFilter:
     def filterTweet(self, input):
         input = self.filterUris(input)
         input = self.filterReplies(input)
+        input = self.filterTags(input)
         input = self.filterCharacters(input)
 
         output = input
@@ -61,6 +62,16 @@ class TweetFilter:
             user = self.request("http://api.twitter.com/1/users/show.json?screen_name=" + t)
             if user:
                 output = input.replace(t, user['name'])
+            return output
+        else:
+            return input
+        
+    def filterTags(self, input):
+        # Extract #hashtag
+        if "#" in input:
+            t = input[input.find("#"):]
+            t = t[:t.find(" ")]
+            output = input.replace(t, "")
             return output
         else:
             return input
