@@ -112,7 +112,7 @@ class TweetFilter:
         if detection['status']:
             try:
                 gender = detection['photos'][0]['tags'][0]['attributes']['gender']['value']
-            except KeyError:
+            except:
                 gender = "neuter"
         else:
             gender = "neuter"
