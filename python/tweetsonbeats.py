@@ -13,27 +13,33 @@ import sys
 import hashlib
 import face_client
 import urllib
+import datetime
 import tweepy
+from tweepy.api import API
 import time
 from textwrap import TextWrapper
 from random import choice
 import mixer
+import scapi
 
 '''Classes'''
 class StreamWatcherListener(tweepy.StreamListener):
     '''
     Object that watches for tweets marked #beatify.
     '''
-    status_wrapper = TextWrapper(width=60, initial_indent='    ', subsequent_indent='    ')
-
+    def __init__(self, api=None):
+        self.api = api or API()
+        self.timer = 0
+        self.tweets_beated = []
+        
     def on_status(self, status):
         try:
-            tempProcessor = TweetProcessor(status)
-            TweetProcessor.process()
-            print '\n %s  %s  via %s\n' % (status.author.screen_name, status.created_at, status.source)
+            self.log('\n %s \"%s\" : %s for %s' % (status.screen_name, status.text, status.created_at, status.id))
+            if status.id not in self.tweets_beated:
+                processed = self.processTweet(status)
+            else:
+                print "Tweet already beated."
         except:
-            # Catch any unicode errors while printing to console
-            # and just ignore them to avoid breaking application.
             pass
 
     def on_error(self, status_code):
@@ -42,17 +48,33 @@ class StreamWatcherListener(tweepy.StreamListener):
 
     def on_timeout(self):
         print 'Snoozing Zzzzzz'
+        self.timer = self.timer + 1
+        if self.timer >= 1:
+            print "Haven't heard anything for a while - polling!\n"
+            self.poll()
+            self.timer = 0
+    
+    def processTweet(self, status):
+        self.tweets_beated.append(status.id)
+        tempProcessor = TweetProcessor(status)
+        tempProcessor.process()
+        self.timer = 0
 
-    def start():
-        # Prompt for login credentials and setup stream object
-        username = "twonbe"
-        password = "foobar"
-        stream = tweepy.Stream(username, password, StreamWatcherListener(), timeout=None)
-    
-        follow_list = None
-        track_list = "#beatify"
-    
-        stream.filter(follow_list, track_list)
+    def poll(self):
+        search = self.api.search('#beatify')
+        for tweet in search:
+            now = datetime.datetime.now()
+            then = datetime.datetime.strptime(str(tweet.created_at), "%Y-%m-%d %H:%M:%S")
+            delta = now - then
+            print then
+            print str(delta.seconds)
+            if tweet.id not in self.tweets_beated and delta.seconds < 1200:
+                status = tweepy.Status()
+                status.id = tweet.id
+                status.text = tweet.text
+                status.screen_name = tweet.from_user
+                status.created_at = tweet.created_at
+                self.processTweet(status)
 
 
 class TweetProcessor:
@@ -60,20 +82,34 @@ class TweetProcessor:
     Object for processing tweets themselves.
     This is where the magic happens.
     '''
-    def __init__(self, tweet=None):
-        self.tweet = tweet
+    def __init__(self, status):
+        self.log("Processing tweet: %s by %s - \"%s\"" % (status.id, status.screen_name, status.text))
+        self.status = status
         #self.filter = TweetFilter(tweet.text, tweet.author)
         
     def process(self):
-        filter = FilterTweet(self.tweet.text, self.tweet.screen_name).read()
+        self.log("Filtering tweet...")
+        filter = TweetFilter(self.status.text, self.status.screen_name).read()
+        self.log("Tweet filtered as: " + filter['text'])
         
         if filter['user']['gender'] == "male":
             voice = "usenglishmale1"
         else:
             voice = "usenglishfemale1"
-            
+        self.log("Synthesizing tweet...")
         vox = self.getVox(filter['text'], voice)
-        twonbe = self.mixdown(vox)
+        if vox:
+            self.log("Vox generated at " + vox + ".")
+            self.log("Slapping that tweet on a beat...")
+            twonbe = self.mixdown(vox)
+        else:
+            raise TwonbeError("Failed to get voice synthesis!")
+        
+        if twonbe:
+            self.log("Twonbe generated at " + self.twonbe.read())
+            
+        else:
+            raise TwonbeError("Failed to mix tweet to beat!")
            
     def getVox(self, text, voice="usenglishfemale1"):
         hash = hashlib.md5(text).hexdigest()
@@ -100,11 +136,18 @@ class TweetProcessor:
         return "/tmp/" + str(hash) + ".mp3"
     
     def mixdown(self, vox):
-        mixer = mixer.Mixdown(vox)
-        return mixer.read()
+        myMixer = mixer.Mixer(vox)
+        return myMixer.read()
     
-    def upload(self):
-        stub = true
+    def tweet(self, status):
+        stub = True
+        
+    def upload(self, twonbe):
+        stub = True
+        
+    def log(self, string):
+        print string + "\n"
+        
 
 class TweetFilter:
     '''
@@ -240,22 +283,21 @@ class TwonbeError(Exception):
 
     def __str__(self):
         return '%s' % (self.error_message)
+    
+
+def main():
+    # Prompt for login credentials and setup stream object
+    username = "twonbe"
+    password = "foobar"
+    auth = tweepy.BasicAuthHandler(username, password)
+    stream = tweepy.Stream(auth, StreamWatcherListener(), timeout=None)
+
+    stream.filter(None, track=("#beatify",))
 
 
 '''Implementation'''
 if __name__ == "__main__":
     try:
-        text = sys.argv[1]
-        user = sys.argv[2]
-    except IndexError:
-        print "Usage: getvox.py \"String you want vox for.\""
-    filter = TweetFilter(text,user).read()
-    if filter:
-        if filter['user']['gender'] == "male":
-            voice = "usenglishmale1"
-        else:
-            voice = "usenglishfemale1"
-        espeak = Say(filter['text'], voice)
-        print "/tmp/" + espeak.read()
-    else:
-        print False
+        main()
+    except KeyboardInterrupt:
+        print "\nDone!"

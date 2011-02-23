@@ -37,6 +37,7 @@ class Mixer:
         vox_tmp2 = self.tempFileName("v2")
         beat_tmp = self.tempFileName()
         mix_tmp = self.tempFileName()
+        final_tmp = self.tempFileName("final")
         
         print vox_tmp2
         # Sox mixing
@@ -62,11 +63,11 @@ class Mixer:
         self.log(str(mix_vox_and_beat.communicate()))
         
         self.log("Mixing TwOnBe outro...")
-        mix_twonbe = subprocess.Popen(["sox", "-G",  mix_tmp, outro, "TweetBeat.wav"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        mix_twonbe = subprocess.Popen(["sox", "-G",  mix_tmp, outro, final_tmp], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         mix_twonbe.wait()
         self.log(str(mix_twonbe.communicate()))
         
-        return mix_tmp
+        return final_tmp
       
     def read(self):
         return self.twonbe
