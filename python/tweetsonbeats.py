@@ -17,6 +17,7 @@ import tweepy
 import time
 from textwrap import TextWrapper
 from random import choice
+import mixer
 
 '''Classes'''
 class StreamWatcherListener(tweepy.StreamListener):
@@ -64,21 +65,7 @@ class TweetProcessor:
         
     def process(self):
         stub = True
-    
-    def getBeat(self):
-        try:
-            beats = os.listdir("../ruby/beat")
-            return choice(beats)
-        except OSError:
-            raise TwonbeError("Cannot find beats directory.")
-    
-    def getOutro(self):
-        try:
-            outros = os.listdir("../ruby/beats")
-            return choice(outros)
-        except OSError:
-            raise TwonbeError("Cannot find beats directory.")
-        
+           
     def getVox(self, text, voice="usenglishfemale1"):
         hash = hashlib.md5(text).hexdigest()
         path = "https://api.ispeech.org/api/rest/?"
@@ -103,8 +90,9 @@ class TweetProcessor:
         f.close()
         return "/tmp/" + str(hash) + ".mp3"
     
-    def mixdown(self, beat, vox):
-        stub = True
+    def mixdown(self, vox):
+        mixer = mixer.Mixdown(vox)
+        return mixer.read()
         
 
 class TweetFilter:

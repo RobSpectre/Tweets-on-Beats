@@ -14,7 +14,6 @@ import re, string
 import simplejson as json
 import urllib2
 import sys
-import syllables
 import subprocess
 import hashlib
 import face_client
@@ -32,7 +31,6 @@ class TweetFilter:
         self.text = text
         self.output = self.filterTweet(text)
         if self.output:
-            self.syllables = Syllables(text)
             self.user = self.getUser(username)
 
     def filterTweet(self, input):
@@ -91,8 +89,7 @@ class TweetFilter:
         if self.output:
             return {
                     'text': self.output,
-                    'user': self.user,
-                    'syllables': self.syllables.read()
+                    'user': self.user
             }
 
     def getUser(self, username):
@@ -138,30 +135,6 @@ class TweetFilter:
             return json.loads(data)
         else:
             return data
-
-class Syllables:
-    '''
-    Implementation
-    text = "@dn0t I'll send that !@#$%#!@$girl home wit a smid-ile http://wtf.me/w00t"
-    syllables = Syllables(text)
-    print syllables.read()
-    '''
-    def __init__(self, text):
-        self.text = text
-        self.output = self.countSyllables(text)
-
-    def countSyllables(self, input):
-        list =[]
-        for word in input.split(" "):
-            count = syllables.count(word)
-            list.append({
-                "word": word,
-                "count": count
-            })
-        return list
-
-    def read(self):
-        return self.output
 
 class GenderDetect(face_client.FaceClient):
     def detect(self, uri):
