@@ -28,7 +28,8 @@ class StreamWatcherListener(tweepy.StreamListener):
 
     def on_status(self, status):
         try:
-            print self.status_wrapper.fill(status.text)
+            tempProcessor = TweetProcessor(status)
+            TweetProcessor.process()
             print '\n %s  %s  via %s\n' % (status.author.screen_name, status.created_at, status.source)
         except:
             # Catch any unicode errors while printing to console
@@ -64,7 +65,15 @@ class TweetProcessor:
         #self.filter = TweetFilter(tweet.text, tweet.author)
         
     def process(self):
-        stub = True
+        filter = FilterTweet(self.tweet.text, self.tweet.screen_name).read()
+        
+        if filter['user']['gender'] == "male":
+            voice = "usenglishmale1"
+        else:
+            voice = "usenglishfemale1"
+            
+        vox = self.getVox(filter['text'], voice)
+        twonbe = self.mixdown(vox)
            
     def getVox(self, text, voice="usenglishfemale1"):
         hash = hashlib.md5(text).hexdigest()
@@ -93,7 +102,9 @@ class TweetProcessor:
     def mixdown(self, vox):
         mixer = mixer.Mixdown(vox)
         return mixer.read()
-        
+    
+    def upload(self):
+        stub = true
 
 class TweetFilter:
     '''

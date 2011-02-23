@@ -13,21 +13,20 @@ import random
 '''Classes'''
 class Mixer:
     def __init__(self, vox):
+        # Vox, beat and outro raw files.
         self.beat = self.getBeat()
         self.vox = vox
         self.outro = self.getOutro()
         
-        print self.outro
+        # Volumes
+        self.vox_volume = 0.7
+        self.beat_volume = 0.6
         
         # Mixing parameters
         self.bpm = int(self.beat.split("_")[1])
-        print str(self.bpm)
         self.offset= int((60.0/(self.bpm / 4))*2)
-        print str(self.offset)
         self.voice_length = os.path.getsize(self.vox) / 7452
-        print str(self.voice_length)
         self.almost_full_length = int(self.offset + self.voice_length + 1)
-        print str(self.almost_full_length)
         
         # Mix that shit.
         self.twonbe = self.mix(self.beat, self.vox, self.outro)
@@ -48,12 +47,12 @@ class Mixer:
         self.log(convert_vox.communicate())
         
         self.log("Mixing vox offset of " + str(self.offset))
-        offset_vox = subprocess.Popen(["sox", "-G", vox_tmp, vox_tmp2, "vol", "0.7", "delay", str(self.offset), str(self.offset)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        offset_vox = subprocess.Popen(["sox", "-G", vox_tmp, vox_tmp2, "vol", str(self.vox_volume), "delay", str(self.offset), str(self.offset)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         offset_vox.wait()
         self.log(str(offset_vox.communicate()))
         
         self.log("Trimming beat...")
-        trim_beat = subprocess.Popen(["sox", self.beat, beat_tmp, "trim", "0", str(self.almost_full_length), "vol", "0.6"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        trim_beat = subprocess.Popen(["sox", self.beat, beat_tmp, "trim", "0", str(self.almost_full_length), "vol", str(self.beat_volume)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         trim_beat.wait()
         self.log(str(trim_beat.communicate()))
         
