@@ -66,8 +66,6 @@ class StreamWatcherListener(tweepy.StreamListener):
             now = datetime.datetime.now()
             then = datetime.datetime.strptime(str(tweet.created_at), "%Y-%m-%d %H:%M:%S")
             delta = now - then
-            print then
-            print str(delta.seconds)
             if tweet.id not in self.tweets_beated and delta.seconds < 1200:
                 status = tweepy.Status()
                 status.id = tweet.id
