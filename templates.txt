@@ -1,0 +1,6 @@
+Yo @%s, here's your tweet on a beat. %s
+Aw snap @%s - your tweet's on a beat! %s
+Awwww yeah @%s that was one tasty tweet. %s
+ska-DOOOOSH @%s - %s
+A little sizzle on @%s's twizzle. %s
+Bamf @%s - your tweet got straight-up beat! %s

@@ -20,7 +20,8 @@ import time
 from textwrap import TextWrapper
 from random import choice
 import mixer
-import scapi
+import subprocess
+import random
 
 '''Classes'''
 class StreamWatcherListener(tweepy.StreamListener):
@@ -63,10 +64,11 @@ class StreamWatcherListener(tweepy.StreamListener):
     def poll(self):
         search = self.api.search('#beatify')
         for tweet in search:
-            now = datetime.datetime.now()
+            print str(tweet.id) + " " + str(tweet.created_at) + " " + str(tweet.text)
+            now = datetime.datetime.utcnow()
             then = datetime.datetime.strptime(str(tweet.created_at), "%Y-%m-%d %H:%M:%S")
             delta = now - then
-            if tweet.id not in self.tweets_beated and delta.seconds < 1200:
+            if tweet.id not in self.tweets_beated and delta.seconds < 4000:
                 status = tweepy.Status()
                 status.id = tweet.id
                 status.text = tweet.text
@@ -80,22 +82,32 @@ class TweetProcessor:
     Object for processing tweets themselves.
     This is where the magic happens.
     '''
-    def __init__(self, status):
+    def __init__(self, status):       
+        # Twitter Credentials
+        self.consumer_token = "bzdPlHk429kKb3ZsUfhQw"
+        self.consumer_secret = "25hF3WTQ6h9njyqgS2V9a0jQ2MBkePdBwBshA5IajlY"
+        self.access_token = "251275058-4xfy2Bw1MR6fW1KHdz61px1NzPO7ao5i8E46U0NR"
+        self.access_secret = "6O2kYW5osJMXDfvlxu3Bj9nZcSctxNrpNMxAq8HhcbI"
+        
+        # Variables
         self.log("Processing tweet: %s by %s - \"%s\"" % (status.id, status.screen_name, status.text))
         self.status = status
-        #self.filter = TweetFilter(tweet.text, tweet.author)
         
     def process(self):
+        # Filter tweet
         self.log("Filtering tweet...")
         filter = TweetFilter(self.status.text, self.status.screen_name).read()
         self.log("Tweet filtered as: " + filter['text'])
         
+        # Synthesize voice.
         if filter['user']['gender'] == "male":
             voice = "usenglishmale1"
         else:
             voice = "usenglishfemale1"
         self.log("Synthesizing tweet...")
         vox = self.getVox(filter['text'], voice)
+        
+        # Mix TwOnBe
         if vox:
             self.log("Vox generated at " + vox + ".")
             self.log("Slapping that tweet on a beat...")
@@ -103,11 +115,17 @@ class TweetProcessor:
         else:
             raise TwonbeError("Failed to get voice synthesis!")
         
+        # Upload TwOnBe        
         if twonbe:
-            self.log("Twonbe generated at " + self.twonbe.read())
-            
+            self.log("Twonbe generated at " + twonbe)
+            #upload = self.upload(twonbe, self.status)
+            upload = "http://soundcloud.com/tweetsonbeats/twonbe-twitter-search-is-3"
         else:
             raise TwonbeError("Failed to mix tweet to beat!")
+        
+        # Tweet TwOnBe
+        return self.tweet(self.status.screen_name, upload[0][:-1])
+        
            
     def getVox(self, text, voice="usenglishfemale1"):
         hash = hashlib.md5(text).hexdigest()
@@ -137,11 +155,26 @@ class TweetProcessor:
         myMixer = mixer.Mixer(vox)
         return myMixer.read()
     
-    def tweet(self, status):
-        stub = True
+    def tweet(self, user, link):
+        # Pick Template
+        templateFile = open("templates.txt")
+        templates = [i for i in templateFile.readlines()]
+        template = random.choice(templates)
         
-    def upload(self, twonbe):
-        stub = True
+        # Connect
+        auth = tweepy.OAuthHandler(self.consumer_token, self.consumer_secret)
+        auth.set_access_token(self.access_token, self.access_secret)
+        api = tweepy.API(auth)
+        tweet = template % (user, link)
+        return api.update_status(tweet)
+        
+    def upload(self, twonbe, status):
+        self.log("Uploading TwOnBe...")
+        mix_twonbe = subprocess.Popen(["ruby", "upload.rb", twonbe, status.screen_name,  status.text], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        mix_twonbe.wait()
+        output = mix_twonbe.communicate()
+        self.log(str(output))
+        return output
         
     def log(self, string):
         print string + "\n"

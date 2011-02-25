@@ -83,17 +83,17 @@ class Mixer:
         
     def getBeat(self):
         try:
-            beats = os.listdir("../ruby/beats")
+            beats = os.listdir("beats")
             beat = random.choice(beats)
-            return "../ruby/beats/" + str(beat)
+            return "beats/" + str(beat)
         except OSError:
             raise MixerError("Cannot find beats directory.")
         
     def getOutro(self):
         try:
-            outros = os.listdir("../ruby/outros")
+            outros = os.listdir("outros")
             outro = random.choice(outros)
-            return "../ruby/outros/" + str(outro)
+            return "outros/" + str(outro)
         except OSError:
             raise MixerError("Cannot find beats directory.")
     
