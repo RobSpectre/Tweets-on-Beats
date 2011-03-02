@@ -35,8 +35,7 @@ class Model(object):
         """Parse a list of JSON objects into a result set of model instances."""
         results = ResultSet()
         for obj in json_list:
-            if obj:
-                results.append(cls.parse(api, obj))
+            results.append(cls.parse(api, obj))
         return results
 
 
@@ -47,8 +46,7 @@ class Status(Model):
         status = cls(api)
         for k, v in json.items():
             if k == 'user':
-                user_model = getattr(api.parser.model_factory, 'user')
-                user = user_model.parse(api, v)
+                user = User.parse(api, v)
                 setattr(status, 'author', user)
                 setattr(status, 'user', user)  # DEPRECIATED
             elif k == 'created_at':
@@ -59,7 +57,6 @@ class Status(Model):
                     setattr(status, 'source_url', parse_a_href(v))
                 else:
                     setattr(status, k, v)
-                    setattr(status, 'source_url', None)
             elif k == 'retweeted_status':
                 setattr(status, k, Status.parse(api, v))
             else:
@@ -277,19 +274,6 @@ class List(Model):
     def is_subscribed(self, id):
         return self._api.is_subscribed_list(self.user.screen_name, self.slug, id)
 
-class Relation(Model):
-    @classmethod
-    def parse(cls, api, json):
-        result = cls(api)
-        for k,v in json.items():
-            if k == 'value' and json['kind'] in ['Tweet', 'LookedupStatus']:
-                setattr(result, k, Status.parse(api, v))
-            elif k == 'results':
-                setattr(result, k, Relation.parse_list(api, v))
-            else:
-                setattr(result, k, v)
-        return result
-
 
 class JSONModel(Model):
 
@@ -322,7 +306,6 @@ class ModelFactory(object):
     saved_search = SavedSearch
     search_result = SearchResult
     list = List
-    relation = Relation
 
     json = JSONModel
     ids = IDModel

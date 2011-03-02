@@ -9,7 +9,6 @@ import re
 
 from tweepy.error import TweepError
 from tweepy.utils import convert_to_utf8_str
-from tweepy.models import Model
 
 re_path_template = re.compile('{\w+}')
 
@@ -68,8 +67,6 @@ def bind_api(**config):
         def build_parameters(self, args, kargs):
             self.parameters = {}
             for idx, arg in enumerate(args):
-                if arg is None:
-                    continue
 
                 try:
                     self.parameters[self.allowed_param[idx]] = convert_to_utf8_str(arg)
@@ -115,11 +112,9 @@ def bind_api(**config):
                     # must restore api reference
                     if isinstance(cache_result, list):
                         for result in cache_result:
-                            if isinstance(result, Model):
-                                result._api = self.api
+                            result._api = self.api
                     else:
-                        if isinstance(cache_result, Model):
-                            cache_result._api = self.api
+                        cache_result._api = self.api
                     return cache_result
 
             # Continue attempting request until successful

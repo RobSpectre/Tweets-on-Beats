@@ -4,7 +4,6 @@
 
 from tweepy.models import ModelFactory
 from tweepy.utils import import_simplejson
-from tweepy.error import TweepError
 
 
 class Parser(object):

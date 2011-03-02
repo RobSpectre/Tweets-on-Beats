@@ -50,7 +50,7 @@ class StreamWatcherListener(tweepy.StreamListener):
     def on_timeout(self):
         print 'Snoozing Zzzzzz'
         self.timer = self.timer + 1
-        if self.timer >= 1:
+        if self.timer >= 2:
             print "Haven't heard anything for a while - polling!\n"
             self.poll()
             self.timer = 0
@@ -64,7 +64,6 @@ class StreamWatcherListener(tweepy.StreamListener):
     def poll(self):
         search = self.api.search('#beatify')
         for tweet in search:
-            print str(tweet.id) + " " + str(tweet.created_at) + " " + str(tweet.text)
             now = datetime.datetime.utcnow()
             then = datetime.datetime.strptime(str(tweet.created_at), "%Y-%m-%d %H:%M:%S")
             delta = now - then
@@ -118,8 +117,7 @@ class TweetProcessor:
         # Upload TwOnBe        
         if twonbe:
             self.log("Twonbe generated at " + twonbe)
-            #upload = self.upload(twonbe, self.status)
-            upload = "http://soundcloud.com/tweetsonbeats/twonbe-twitter-search-is-3"
+            upload = self.upload(twonbe, self.status)
         else:
             raise TwonbeError("Failed to mix tweet to beat!")
         
@@ -321,9 +319,13 @@ def main():
     username = "twonbe"
     password = "foobar"
     auth = tweepy.BasicAuthHandler(username, password)
-    stream = tweepy.Stream(auth, StreamWatcherListener(), timeout=None)
+    stream = tweepy.Stream(username, password, StreamWatcherListener(), timeout=30)
+    
+    track_list = "#beatify"
+    
+    track_list = [k for k in track_list.split(',')]
 
-    stream.filter(None, track=("#beatify",))
+    stream.filter(None, track_list)
 
 
 '''Implementation'''

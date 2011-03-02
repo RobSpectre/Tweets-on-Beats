@@ -59,7 +59,7 @@ class API(object):
         path = '/statuses/user_timeline.json',
         payload_type = 'status', payload_list = True,
         allowed_param = ['id', 'user_id', 'screen_name', 'since_id',
-                          'max_id', 'count', 'page', 'include_rts']
+                          'max_id', 'count', 'page']
     )
 
     """ statuses/mentions """
@@ -77,14 +77,6 @@ class API(object):
         allowed_param = ['id', 'count', 'page'],
         require_auth = True
     )
-	
-    """/related_results/show/:id.format"""
-    related_results = bind_api(
-        path = '/related_results/show/{id}.json',
-        payload_type = 'relation', payload_list = True,
-        allowed_param = ['id'],
-        require_auth = False
-	)
 
     """/statuses/:id/retweeted_by/ids.format"""
     retweeted_by_ids = bind_api(
@@ -307,10 +299,8 @@ class API(object):
                 payload_type = 'user',
                 require_auth = True
             )(self)
-        except TweepError, e:
-            if e.response and e.response.status == 401:
-                return False
-            raise
+        except TweepError:
+            return False
 
     """ account/rate_limit_status """
     rate_limit_status = bind_api(
