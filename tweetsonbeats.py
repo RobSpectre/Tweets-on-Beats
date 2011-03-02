@@ -36,6 +36,7 @@ class StreamWatcherListener(tweepy.StreamListener):
     def on_status(self, status):
         try:
             self.log('\n %s \"%s\" : %s for %s' % (status.screen_name, status.text, status.created_at, status.id))
+	    print "Received a fat tweet!\n"
             if status.id not in self.tweets_beated:
                 processed = self.processTweet(status)
             else:
@@ -122,8 +123,14 @@ class TweetProcessor:
             raise TwonbeError("Failed to mix tweet to beat!")
         
         # Tweet TwOnBe
-        return self.tweet(self.status.screen_name, upload[0][:-1])
-        
+	if "nil" not in upload[0]:
+		try:
+			self.tweet(self.status.screen_name, upload[0][:-1])
+	        except:
+			print "Error tweeting Twonbe!" 
+	else:
+		print "Error uploading Twonbe!"
+	return
            
     def getVox(self, text, voice="usenglishfemale1"):
         hash = hashlib.md5(text).hexdigest()
@@ -216,8 +223,8 @@ class TweetFilter:
         # Extract @reply
         if "@" in input:
             t = input[input.find("@"):]
-            t = t[:t.find(" ")]
-
+	    if " " in t:
+                t = t[:t.find(" ")]
             user = self.request("http://api.twitter.com/1/users/show.json?screen_name=" + t)
             if user:
                 output = input.replace(t, user['name'])
@@ -229,7 +236,8 @@ class TweetFilter:
         # Extract #hashtag
         if "#" in input:
             t = input[input.find("#"):]
-            t = t[:t.find(" ")]
+            if " " in t:
+                t = t[:t.find(" ")]
             output = input.replace(t, "")
             return output
         else:
@@ -319,7 +327,7 @@ def main():
     username = "twonbe"
     password = "foobar"
     auth = tweepy.BasicAuthHandler(username, password)
-    stream = tweepy.Stream(username, password, StreamWatcherListener(), timeout=30)
+    stream = tweepy.Stream(username, password, StreamWatcherListener(), timeout=10)
     
     track_list = "#beatify"
     
@@ -331,6 +339,7 @@ def main():
 '''Implementation'''
 if __name__ == "__main__":
     try:
+	print "Starting up!\n"
         main()
     except KeyboardInterrupt:
         print "\nDone!"
