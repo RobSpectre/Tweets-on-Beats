@@ -36,8 +36,8 @@ class StreamWatcherListener(tweepy.StreamListener):
     def on_status(self, status):
         try:
             self.log('\n %s \"%s\" : %s for %s' % (status.screen_name, status.text, status.created_at, status.id))
-	    print "Received a fat tweet!\n"
             if status.id not in self.tweets_beated:
+                self.log('Processing new tweet from livestream...')
                 processed = self.processTweet(status)
             else:
                 print "Tweet already beated."
@@ -75,6 +75,9 @@ class StreamWatcherListener(tweepy.StreamListener):
                 status.screen_name = tweet.from_user
                 status.created_at = tweet.created_at
                 self.processTweet(status)
+                
+    def log(self, string):
+        print string + "\n"
 
 
 class TweetProcessor:
