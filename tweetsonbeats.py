@@ -51,7 +51,7 @@ class StreamWatcherListener(tweepy.StreamListener):
     def on_timeout(self):
         print 'Snoozing Zzzzzz'
         self.timer = self.timer + 1
-        if self.timer >= 2:
+        if self.timer >= 3:
             print "Haven't heard anything for a while - polling!\n"
             self.poll()
             self.timer = 0
@@ -68,7 +68,7 @@ class StreamWatcherListener(tweepy.StreamListener):
             now = datetime.datetime.utcnow()
             then = datetime.datetime.strptime(str(tweet.created_at), "%Y-%m-%d %H:%M:%S")
             delta = now - then
-            if tweet.id not in self.tweets_beated and delta.seconds < 4000:
+            if tweet.id not in self.tweets_beated and delta.seconds < 600:
                 status = tweepy.Status()
                 status.id = tweet.id
                 status.text = tweet.text
@@ -77,6 +77,7 @@ class StreamWatcherListener(tweepy.StreamListener):
                 self.processTweet(status)
                 
     def log(self, string):
+        string = string.encode('ascii', 'ignore')
         print string + "\n"
 
 
@@ -185,6 +186,7 @@ class TweetProcessor:
         return output
         
     def log(self, string):
+        string = string.encode('ascii', 'ignore')
         print string + "\n"
         
 
@@ -330,7 +332,7 @@ def main():
     username = "twonbe"
     password = "foobar"
     auth = tweepy.BasicAuthHandler(username, password)
-    stream = tweepy.Stream(username, password, StreamWatcherListener(), timeout=10)
+    stream = tweepy.Stream(username, password, StreamWatcherListener(), timeout=30)
     
     track_list = "#beatify"
     
