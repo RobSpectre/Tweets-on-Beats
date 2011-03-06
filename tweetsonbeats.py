@@ -32,13 +32,14 @@ class StreamWatcherListener(tweepy.StreamListener):
         self.api = api or API()
         self.timer = 0
         self.tweets_beated = []
+        self.search_term = "#beatify"
         
     def on_status(self, status):
         try:
             self.log('\n %s \"%s\" : %s for %s' % (status.screen_name, status.text, status.created_at, status.id))
             if status.id not in self.tweets_beated:
                 self.log('Processing new tweet from livestream...')
-                processed = self.processTweet(status)
+                #processed = self.processTweet(status)
             else:
                 print "Tweet already beated."
         except:
@@ -46,10 +47,15 @@ class StreamWatcherListener(tweepy.StreamListener):
 
     def on_error(self, status_code):
         print 'An error has occured! Status code = %s' % status_code
+        self.pingTimer()
         return True  # keep stream alive
 
     def on_timeout(self):
         print 'Snoozing Zzzzzz'
+        self.pingTimer()
+        return True
+    
+    def pingTimer(self):
         self.timer = self.timer + 1
         if self.timer >= 3:
             print "Haven't heard anything for a while - polling!\n"
@@ -63,7 +69,7 @@ class StreamWatcherListener(tweepy.StreamListener):
         self.timer = 0
 
     def poll(self):
-        search = self.api.search('#beatify')
+        search = self.api.search(self.search_term)
         for tweet in search:
             now = datetime.datetime.utcnow()
             then = datetime.datetime.strptime(str(tweet.created_at), "%Y-%m-%d %H:%M:%S")
@@ -122,19 +128,22 @@ class TweetProcessor:
         # Upload TwOnBe        
         if twonbe:
             self.log("Twonbe generated at " + twonbe)
-            upload = self.upload(twonbe, self.status)
+            try:
+                upload = self.upload(twonbe, self.status)
+            except:
+                raise TwonbeError("Failed to upload tweet.")
         else:
             raise TwonbeError("Failed to mix tweet to beat!")
         
         # Tweet TwOnBe
-	if "nil" not in upload[0]:
-		try:
-			self.tweet(self.status.screen_name, upload[0][:-1])
-	        except:
-			print "Error tweeting Twonbe!" 
-	else:
-		print "Error uploading Twonbe!"
-	return
+        if "nil" not in upload[0]:
+            try:
+                self.tweet(self.status.screen_name, upload[0][:-1])
+            except:
+                print "Error tweeting Twonbe!" 
+    	else:
+    		print "Error uploading Twonbe!"
+    	return
            
     def getVox(self, text, voice="usenglishfemale1"):
         hash = hashlib.md5(text).hexdigest()
@@ -332,9 +341,10 @@ def main():
     username = "twonbe"
     password = "foobar"
     auth = tweepy.BasicAuthHandler(username, password)
-    stream = tweepy.Stream(username, password, StreamWatcherListener(), timeout=30)
+    streamListener = StreamWatcherListener()
+    stream = tweepy.Stream(username, password, streamListener, timeout=30)
     
-    track_list = "#beatify"
+    track_list = streamListener.search_term
     
     track_list = [k for k in track_list.split(',')]
 
