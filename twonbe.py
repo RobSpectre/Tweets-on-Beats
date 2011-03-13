@@ -200,7 +200,7 @@ class CheckTweet(Job):
         self.id = id
         self.tweet = tweet
         self.limit = 600
-        Job.__init__(self, "FilterTweet", id)
+        Job.__init__(self, "CheckTweet", id)
         
     def process(self):
         if self.isNotEnglish() or self.isOld() or self.isAttempted():
