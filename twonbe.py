@@ -13,6 +13,7 @@ import urllib2
 import simplejson
 import redis
 import datetime
+import re
 
 '''
 Configuration variables
@@ -167,12 +168,16 @@ class PollTwitter(Job):
             raise TwonbeError("Error polling", "Could not parse JSON object.")
         
         if data:
-            for tweet in data['results']:
-                self.log.debug("Queueing up tweet to be checked: %s" % (tweet['id_str']))
-                self.twonbe.addJob(CheckTweet(tweet['id_str'], tweet))
-                lastProcessedId = tweet['id_str']
-            self.log.debug('Completed poll - scheduling next one.')
-            return self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), lastProcessedId))
+            if data['results']:
+                for tweet in reversed(data['results']):
+                    self.log.debug("Queueing up tweet to be checked: %s" % (tweet['id_str']))
+                    self.twonbe.addJob(CheckTweet(tweet['id_str'], tweet))
+                    lastProcessedId = tweet['id_str']
+                self.log.debug('Completed poll - scheduling next one.')
+                return self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), lastProcessedId))
+            else:
+                self.log.debug("No results returned.")
+                return self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
         else:
             self.log.debug('Found no data in this job - scheduling next one.')
             return self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
@@ -248,30 +253,136 @@ class FilterTweet(Job):
         Job.__init__(self, "FilterTweet", id)
     
     def process(self):
-        self.log.debug("Processing this shit!")
+        input = self.tweet['text']
+        input = self.filterUris(input)
+        input = self.filterReplies(input)
+        input = self.filterTags(input)
+        input = self.filterCharacters(input)
+        if input:
+            self.tweet['text'] = input
+        return self.twonbe.addJob(GenderCheck(self.id, self.tweet))
+    
+    def filterUris(self, input):
+        if "http" in input:
+            t = input[input.find("http://"):]
+            t = t[:t.find(" ")]
+            output = input.replace(t, '')
+            output = output[:-1]
+            return output
+        else:
+            return input
+        
+    def filterReplies(self, input):
+        if "@" in input:
+            t = input[input.find("@"):]
+        if " " in t:
+            t = t[:t.find(" ")]
+            user = self.request("http://api.twitter.com/1/users/show.json?screen_name=" + t)
+            if user:
+                output = input.replace(t, user['name'])
+            return output
+        else:
+            return input
+        
+    def filterTags(self, input):
+        if "#" in input:
+            t = input[input.find("#"):]
+            if " " in t:
+                t = t[:t.find(" ")]
+            output = input.replace(t, "")
+            return output
+        else:
+            return input
+        
+    def filterCharacters(self, input):
+        pattern = re.compile('[^\'\s\w_]+')
+        output = pattern.sub('', input)
+        return output   
     
 class GenderCheck(Job):
-    def __init__(self, id):
+    def __init__(self, id, tweet):
+        self.id = id
+        self.tweet = tweet
+        self.face = face_client.FaceClient()
         Job.__init__(self, "GenderCheck", id)
+        
+    def process(self):
+        try:
+            detection = self.detect(self.tweet['profile_image_url'])
+        except face_client.FaceError:
+            gender = "neuter"
+        if detection['status']:
+            try:
+                gender = detection['photos'][0]['tags'][0]['attributes']['gender']['value']
+            except:
+                gender = "neuter"
+        else:
+            gender = "neuter"
+        self.tweet['gender'] = gender
+        return self.twonbe.addJob(SynthesizeTweet(self.id, self.tweet))
+                    
+    def detect(self, uri):
+        return self.face.faces_detect(uri)
 
 class SynthesizeTweet(Job):
-    def __init__(self, id):
+    def __init__(self, id, tweet):
+        self.id = id
+        self.tweet = tweet
+        self.voice = "usenglishfemale1"
+        self.hash = None
         Job.__init__(self, "SynthesizeTweet", id)
+        
+    def process(self):
+        hash = hash = hashlib.md5(self.tweet['text']).hexdigest()
+        voice = self.getVoice(self.tweet['gender'])
+        vox = self.downloadVox(voice, self.tweet['text'])
+        self.tweet['vox_path'] = self.writeVox(hash, vox)
+        return self.twonbe.addJob(MixTwonbe(self.id, self.tweet))
+           
+    def getVoice(self, gender):
+        if gender == "female":
+            return "usenglishfemale1"
+        else:
+            return "usenglishmale1"
+    
+    def downloadVox(self, voice, text):
+        path = "https://api.ispeech.org/api/rest/?"
+        params = {
+            'apikey': "38fcab81215eb701f711df929b793a89",
+            'action': "convert",
+            'voice': voice,
+            'speed': -2,
+            'text': text
+        }
+    
+    def writeVox(self, hash, vox):
+        f = open("/tmp/" + str(hash) + ".mp3", 'wb')
+        f.write(data)
+        f.close()
+        return "/tmp/" + str(hash) + ".mp3"
     
 class MixTwonbe(Job):
-    def __init__(self, id):
+    def __init__(self, id, tweet):
+        self.id = id
+        self.tweet = tweet
         Job.__init__(self, "MixTwonbe", id)
 
 class UploadTwonbe(Job):
-    def __init__(self, id):
+    def __init__(self, id, tweet):
+        self.id = id
+        self.tweet = tweet
         Job.__init__(self, "UploadTwonbe", id)
 
 class TweetTwonbe(Job):
-    def __init__(self, id):
+    def __init__(self, id, tweet):
+        self.id = id
+        self.tweet = tweet
         Job.__init__(self, "TweetTwonbe", id)
 
 class CleanupTwonbe(Job):
-    def __init__(self, id):
+    def __init__(self, id, cleanup):
+        self.id = id
+        self.cleanup = cleanup
         Job.__init__(self, "TweetTwonbe", id)
 
 '''
@@ -305,14 +416,17 @@ class Utility:
         else:
             return "%i ms" % int(seconds*1000)
     
-    def request(self, path):
+    def request(self, path, params=None):
         # Add debugging to post if logging level is debug
         global logging_level
         if logging_level == logging.DEBUG:
             h=urllib2.HTTPHandler(debuglevel=1)
             opener = urllib2.build_opener(h)
             urllib2.install_opener(opener)
-        request = urllib2.Request(path)
+        if params:
+            request = urllib2.Request(path, urllib.urlencode(params))
+        else:
+            request = urllib2.Request(path)
         self.log.debug("Retrieving URI: %s" % (path))
         try:
             r = urllib2.urlopen(request)

@@ -6,5 +6,5 @@ A little sizzle on @%s's twizzle. %s
 Bamf @%s - your tweet got straight-up beat! %s
 Crank the bass @%s - your tweet is on this beat! %s
 Whoa gang - @%s blew up this tweet on a beat! %s
-Straight up gangsta shizzle @%s. - %s
-Bliggity blam @%s - here's your beat!
+Straight up gangsta shizzle @%s. %s
+Bliggity blam @%s - here's your beat! %s
