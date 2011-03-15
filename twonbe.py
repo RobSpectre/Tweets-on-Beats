@@ -14,12 +14,16 @@ import simplejson
 import redis
 import datetime
 import re
+import os
+import tweepy
+import face_client
+import hashlib
 
 '''
 Configuration variables
 '''
 searchapi = "http://search.twitter.com"
-keyword = "beatify"
+keyword = "#beatify"
 logging_level = logging.DEBUG
 logging.basicConfig()
 redis_host = "localhost"
@@ -157,15 +161,9 @@ class PollTwitter(Job):
         self.log.debug("Starting to process polling job.")
         path = self.buildRequest()
         if path:
-            json = self.util.request(path)
+            data = self.util.request(path)
         else:
             raise TwonbeError("Error polling", "Could not build request path.")
-        
-        if json:
-            self.log.debug("Parsing JSON object.")
-            data = simplejson.loads(json)
-        else:
-            raise TwonbeError("Error polling", "Could not parse JSON object.")
         
         if data:
             if data['results']:
@@ -208,7 +206,7 @@ class CheckTweet(Job):
         Job.__init__(self, "CheckTweet", id)
         
     def process(self):
-        if self.isNotEnglish() or self.isOld() or self.isAttempted():
+        if self.isNotEnglish() or self.isAttempted():
             self.log.debug("Tweet does not pass initial checks - skipping.")
             return False
         else:
@@ -253,13 +251,15 @@ class FilterTweet(Job):
         Job.__init__(self, "FilterTweet", id)
     
     def process(self):
+        self.log.debug("Filtering string: %s" % (self.tweet['text']))
         input = self.tweet['text']
         input = self.filterUris(input)
         input = self.filterReplies(input)
         input = self.filterTags(input)
         input = self.filterCharacters(input)
         if input:
-            self.tweet['text'] = input
+            self.log.debug("String filtered as: %s" % (input))
+            self.tweet['filtered_text'] = input
         return self.twonbe.addJob(GenderCheck(self.id, self.tweet))
     
     def filterUris(self, input):
@@ -273,16 +273,17 @@ class FilterTweet(Job):
             return input
         
     def filterReplies(self, input):
-        if "@" in input:
+        if "@ " in input:
+            pass
+        elif "@" in input:
             t = input[input.find("@"):]
-        if " " in t:
-            t = t[:t.find(" ")]
-            user = self.request("http://api.twitter.com/1/users/show.json?screen_name=" + t)
-            if user:
-                output = input.replace(t, user['name'])
-            return output
-        else:
-            return input
+            self.log.debug("Replacing name %s with full name." % (t))
+            if " " in t:
+                t = t[:t.find(" ")]
+                user = self.util.request("http://api.twitter.com/1/users/show.json?screen_name=" + t)
+                if user:
+                    return input.replace(t, user['name'])
+        return input
         
     def filterTags(self, input):
         if "#" in input:
@@ -333,9 +334,10 @@ class SynthesizeTweet(Job):
         Job.__init__(self, "SynthesizeTweet", id)
         
     def process(self):
-        hash = hash = hashlib.md5(self.tweet['text']).hexdigest()
+        self.log.debug("Synthesizing filtered text...")
+        hash = hashlib.md5(self.tweet['filtered_text']).hexdigest()
         voice = self.getVoice(self.tweet['gender'])
-        vox = self.downloadVox(voice, self.tweet['text'])
+        vox = self.downloadVox(voice, self.tweet['filtered_text'])
         self.tweet['vox_path'] = self.writeVox(hash, vox)
         return self.twonbe.addJob(MixTwonbe(self.id, self.tweet))
            
@@ -356,34 +358,191 @@ class SynthesizeTweet(Job):
         }
     
     def writeVox(self, hash, vox):
-        f = open("/tmp/" + str(hash) + ".mp3", 'wb')
-        f.write(data)
-        f.close()
+        self.util.write("/tmp/" + str(hash) + ".mp3", vox)
         return "/tmp/" + str(hash) + ".mp3"
     
 class MixTwonbe(Job):
     def __init__(self, id, tweet):
         self.id = id
         self.tweet = tweet
+        
+        # Vox, beat and outro raw files.
+        self.beat = self.getBeat()
+        self.vox = self.tweet['vox_path']
+        self.outro = self.getOutro()
+        
+        # Volumes
+        self.vox_volume = 0.7
+        self.beat_volume = 0.6
+        
+        # Mixing parameters
+        self.bpm = int(self.beat.split("_")[1])
+        self.offset= int((60.0/(self.bpm / 4))*2)
+        self.voice_length = os.path.getsize(self.vox) / 7452
+        self.almost_full_length = int(self.offset + self.voice_length + 1)
+        
         Job.__init__(self, "MixTwonbe", id)
+        
+    def process(self):
+        # Generate mixing temporary filenames.
+        self.vox_tmp = self.tempFileName("v1")
+        self.vox_tmp2 = self.tempFileName("v2")
+        self.beat_tmp = self.tempFileName()
+        self.mix_tmp = self.tempFileName()
+        self.final_tmp = self.tempFileName("final")
+        
+        # Mix TwOnBe
+        try:
+            self.convertVox()
+        except Exception as e:
+            raise TwonbeError(e, "%s: %s failed to convert vox:" % (self.name, self.id))
+        try:
+            self.offsetVox()
+        except Exception as e:
+            raise TwonbeError(e, "%s: %s failed to offset vox:" % (self.name, self.id))
+        try:
+            self.trimBeat()
+        except Exception as e:
+            raise TwonbeError(e, "%s: %s failed to trim beat:" % (self.name, self.id))
+        try:
+            self.mixVoxAndBeat()
+        except Exception as e:
+            raise TwonbeError(e, "%s: %s failed to mix vox and beat:" % (self.name, self.id))
+        try:
+            self.mixOutro()
+        except Exception as e:
+            raise TwonbeError(e, "%s: %s failed to mix outro:" % (self.name, self.id))
+        
+        # Add paths to tweet
+        self.tweet['vox_tmp'] = self.vox_tmp
+        self.tweet['vox_tmp2'] = self.vox_tmp2
+        self.tweet['beat_tmp'] = self.beat_tmp
+        self.tweet['mix_tmp'] = self.mix_tmp
+        self.tweet['twonbe'] = self.final_tmp
+        
+        # Queue up next job
+        return self.twonbe.addJob(UploadTwonbe(self.id, self.tweet))
+    
+    def convertVox(self):
+        self.log.debug("Mixing TwOnBe...")
+        self.log.debug("Converting vox...")
+        convert_vox = subprocess.Popen(["sox", "-G", self.vox, "-c", "2", self.vox_tmp, "rate", "44100"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        convert_vox.wait()
+        return self.log.debug(convert_vox.communicate())
+    
+    def offsetVox(self):
+        self.log.debug("Mixing vox offset of " + str(self.offset))
+        offset_vox = subprocess.Popen(["sox", "-G", self.vox_tmp, self.vox_tmp2, "vol", str(self.vox_volume), "delay", str(self.offset), str(self.offset)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        offset_vox.wait()
+        return self.log.debug(str(offset_vox.communicate()))
+        
+    def trimBeat(self):
+        self.log.debug("Trimming beat...")
+        trim_beat = subprocess.Popen(["sox", self.beat, self.beat_tmp, "trim", "0", str(self.almost_full_length), "vol", str(self.beat_volume)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        trim_beat.wait()
+        return self.log.debug(str(trim_beat.communicate()))
+    
+    def mixVoxAndBeat(self):
+        self.log.debug("Mixing vox and beat...")
+        mix_vox_and_beat = subprocess.Popen(["sox", "-G", "-m", self.vox_tmp2, self.beat_tmp, self.mix_tmp], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        mix_vox_and_beat.wait()
+        return self.log.debug(str(mix_vox_and_beat.communicate()))
+    
+    def mixOutro(self):
+        self.log.debug("Mixing TwOnBe outro...")
+        mix_twonbe = subprocess.Popen(["sox", "-G",  self.mix_tmp, self.outro, self.final_tmp], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        mix_twonbe.wait()
+        return self.log.debug(str(mix_twonbe.communicate()))
+               
+    def getBeat(self):
+        try:
+            beats = os.listdir("beats")
+            beat = random.choice(beats)
+            return "beats/" + str(beat)
+        except Exception as e:
+            raise TwonbeError(e, "%s: %s failed:" % (self.name, self.id))
+        
+    def getOutro(self):
+        try:
+            outros = os.listdir("outros")
+            outro = random.choice(outros)
+            return "outros/" + str(outro)
+        except Exception as e:
+            raise TwonbeError(e, "%s: %s failed:" % (self.name, self.id))
+    
+    def tempFileName(self, name="", ext=".wav"):
+        return "/tmp/tweetsonbeats-" + name + str(random.randint(1, 9999)) + ext
 
 class UploadTwonbe(Job):
     def __init__(self, id, tweet):
         self.id = id
         self.tweet = tweet
         Job.__init__(self, "UploadTwonbe", id)
+    
+    def process(self):
+        self.log.debug("Uploading TwOnBe...")
+        try:
+            mix_twonbe = subprocess.Popen(["ruby", "upload.rb", self.tweet['twonbe'], self.tweet['from_user'],  self.tweet['filtered_text']], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            mix_twonbe.wait()
+            output = mix_twonbe.communicate()
+        except Exception as e:
+            raise TwonbeError(e, "%s: %s failed to upload TwOnBe:" % (self.name, self.id))
+        self.log.debug("Twonbe uploaded here: %s" % (output))
+        self.tweet['soundcloud_path'] = output
+        self.log.debug("Queueing cleanup of files:")
+        self.twonbe.addJob(CleanupTwonbe(self.id, self.tweet))
+        return self.twonbe.addJob(TweetTwonbe(self.id, self.tweet))
 
 class TweetTwonbe(Job):
     def __init__(self, id, tweet):
         self.id = id
         self.tweet = tweet
+        # Twitter credentials
+        self.consumer_token = "bzdPlHk429kKb3ZsUfhQw"
+        self.consumer_secret = "25hF3WTQ6h9njyqgS2V9a0jQ2MBkePdBwBshA5IajlY"
+        self.access_token = "251275058-4xfy2Bw1MR6fW1KHdz61px1NzPO7ao5i8E46U0NR"
+        self.access_secret = "6O2kYW5osJMXDfvlxu3Bj9nZcSctxNrpNMxAq8HhcbI"      
         Job.__init__(self, "TweetTwonbe", id)
+    
+    def process(self):
+        template = self.getTemplate()        
+        auth = tweepy.OAuthHandler(self.consumer_token, self.consumer_secret)
+        auth.set_access_token(self.access_token, self.access_secret)
+        api = tweepy.API(auth)
+        tweet = template % (self.tweet['from_user'], self.tweet["soundcloud_path"])
+        tweet = api.update_status(tweet)
+        return self.store()
+    
+    def getTemplate(self):
+        self.log.debug("Loading template file.")
+        templateFile = open("templates.txt")
+        templates = [i for i in templateFile.readlines()]
+        template = random.choice(templates)
+        self.log.debug("Selecting template: %s" % (template))
+        return template
+    
+    def store(self):
+        self.log.debug("Storing tweet in cache.")
+        self.util.redis.sadd(self.tweet['id_str'], self.tweet)
+        return self.util.redis.sadd("processed", self.tweet['id_str'])
 
 class CleanupTwonbe(Job):
     def __init__(self, id, cleanup):
         self.id = id
         self.cleanup = cleanup
         Job.__init__(self, "TweetTwonbe", id)
+        
+    def process(self):
+        cleanuplist = [self.tweet['vox_tmp'], self.tweet['vox_tmp2'], self.tweet['beat_tmp'], self.tweet['mix_tmp'], self.tweet['twonbe'], self.tweet['vox_path']]
+        for file in cleanupList:
+            self.log.debug("Deleting %s" % (file))
+            try:
+                self.util.delete(file)
+            except Exception as e:
+                raise TwonbeError(e, "%s: %s failed to delete file %s" % (self.name, self.id, file))
+            self.log.debug("Deleted %s" % (file))
+        return self.log.debug("Cleanup job complete.")
+        
 
 '''
 Utility functions
@@ -434,8 +593,25 @@ class Utility:
             self.log.error("Could not get URI: %s" % (path))
             return False
         self.log.debug("URI retrieved: %s" % (path))
-        data = r.read()   
-        return data
+        if "json" in path:
+            return simplejson.loads(r.read())
+        else:
+            return r.read()
+    
+    def write(self, file, data):
+        try:
+            f = open(file)
+            f.write(data)
+            f.close()
+            return True
+        except Exception as e:
+            raise TwonbeError(e, "Error writing file %s" % (file))
+    
+    def delete(self, file):
+        try:
+            os.remove(file)
+        except Exception as e:
+            raise TwonbeError(e, "Error delete file %s" % (file))
      
 
 '''
