@@ -8,6 +8,7 @@ Written by /rob, 11 March 2011
 '''
 import threading
 import logging
+import logging.handlers
 import urllib
 import urllib2
 import simplejson
@@ -25,6 +26,9 @@ Configuration variables
 searchapi = "http://search.twitter.com"
 keyword = "#beatify"
 logging_level = logging.DEBUG
+log_handler = logging.handlers.RotatingFileHandler("/var/log/tweetsonbeats.log", maxBytes=524288000, backupCount=5) 
+log_formatter = logging.Formatter('%(asctime)s::%(name)s::%(levelname)s::%(message)s')
+log_handler.setFormatter(log_formatter)
 logging.basicConfig()
 redis_host = "localhost"
 
@@ -45,6 +49,8 @@ class TwonbeDaemon(threading.Thread):
         self.log = logging.getLogger("TwonbeDaemon")  
         global logging_level
         self.log.setLevel(logging_level)
+        global log_handler
+        self.log.addHandler(log_handler)
         self.log.info("Initialized.")
 
     def run(self):
@@ -125,6 +131,8 @@ class Job(threading.Thread):
         self.log = logging.getLogger(name)
         global logging_level
         self.log.setLevel(logging_level)
+        global log_handler
+        self.log.addHandler(log_handler)
         self.log.debug("Created %s job: %s" % (self.name, self.id))
     
     def run(self):
@@ -161,7 +169,11 @@ class PollTwitter(Job):
         self.log.debug("Starting to process polling job.")
         path = self.buildRequest()
         if path:
-            data = self.util.request(path)
+            try:
+                data = self.util.request(path)
+            except:
+                self.log.error("Error polling Twitter.")
+                return self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
         else:
             raise TwonbeError("Error polling", "Could not build request path.")
         
@@ -554,6 +566,8 @@ class Utility:
         self.hash = None
         global logging_level
         self.log.setLevel(logging_level)
+        global log_handler
+        self.log.addHandler(log_handler)
         if logging_level == logging.DEBUG:
             logger = 1
         else:
@@ -624,6 +638,8 @@ class TwonbeError(Exception):
         self.log = logging.getLogger("TwonbeError")
         global logging_level
         self.log.setLevel(logging_level)
+        global log_handler
+        self.log.addHandler(log_handler)
         if logging_level == logging.DEBUG:
             self.errorOut(message, e)
         else:
