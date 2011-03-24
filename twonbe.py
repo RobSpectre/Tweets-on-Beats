@@ -26,7 +26,7 @@ Configuration variables
 searchapi = "http://search.twitter.com"
 keyword = "#beatify"
 logging_level = logging.DEBUG
-log_handler = logging.handlers.RotatingFileHandler("/var/log/tweetsonbeats.log", maxBytes=524288000, backupCount=5) 
+log_handler = logging.handlers.RotatingFileHandler("/tmp/tweetsonbeats.log", maxBytes=524288000, backupCount=5) 
 log_formatter = logging.Formatter('%(asctime)s::%(name)s::%(levelname)s::%(message)s')
 log_handler.setFormatter(log_formatter)
 logging.basicConfig()
@@ -173,7 +173,8 @@ class PollTwitter(Job):
                 data = self.util.request(path)
             except:
                 self.log.error("Error polling Twitter.")
-                return self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
+                self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
+                return False
         else:
             raise TwonbeError("Error polling", "Could not build request path.")
         
@@ -184,13 +185,16 @@ class PollTwitter(Job):
                     self.twonbe.addJob(CheckTweet(tweet['id_str'], tweet))
                     lastProcessedId = tweet['id_str']
                 self.log.debug('Completed poll - scheduling next one.')
-                return self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), lastProcessedId))
+                self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), lastProcessedId))
+                return True
             else:
                 self.log.debug("No results returned.")
-                return self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
+                self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
+                return False
         else:
             self.log.debug('Found no data in this job - scheduling next one.')
-            return self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
+            self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
+            return False
     
     def buildRequest(self):
         # Build polling request
@@ -559,7 +563,7 @@ class CleanupTwonbe(Job):
 '''
 Utility functions
 '''
-class Utility:
+class Utility(object):
     def __init__(self):
         # Configuration directives
         self.log = logging.getLogger("Utility")
@@ -568,10 +572,6 @@ class Utility:
         self.log.setLevel(logging_level)
         global log_handler
         self.log.addHandler(log_handler)
-        if logging_level == logging.DEBUG:
-            logger = 1
-        else:
-            logger = 0
         global redis_host
         self.redis = redis.Redis(redis_host)
     
@@ -581,7 +581,7 @@ class Utility:
             return "%i days %s" % (days, self.timestr(seconds))        
         elif seconds >= 60*60:
             hours,seconds = divmod(seconds,60*60)
-            return "%i hours %s" % (hours,timestr(seconds))
+            return "%i hours %s" % (hours,self.timestr(seconds))
         elif seconds >= 60:
             return "%i min %.3f s" % divmod(seconds, 60)
         elif seconds >= 1:
@@ -596,6 +596,8 @@ class Utility:
             h=urllib2.HTTPHandler(debuglevel=1)
             opener = urllib2.build_opener(h)
             urllib2.install_opener(opener)
+        if "http://" not in path:
+            return False
         if params:
             request = urllib2.Request(path, urllib.urlencode(params))
         else:
@@ -606,6 +608,9 @@ class Utility:
         except urllib2.HTTPError as e:
             self.log.error("Could not get URI: %s" % (path))
             return False
+        except urllib2.URLError as e:
+            self.log.error("Could not reach URI: %s" % (path))
+            return False
         self.log.debug("URI retrieved: %s" % (path))
         if "json" in path:
             return simplejson.loads(r.read())
@@ -614,7 +619,7 @@ class Utility:
     
     def write(self, file, data):
         try:
-            f = open(file)
+            f = open(file, "w")
             f.write(data)
             f.close()
             return True
@@ -624,6 +629,7 @@ class Utility:
     def delete(self, file):
         try:
             os.remove(file)
+            return True
         except Exception as e:
             raise TwonbeError(e, "Error delete file %s" % (file))
      
