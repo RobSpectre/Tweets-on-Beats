@@ -7,6 +7,7 @@ written by /rob, 23 March 2011
 import unittest
 import logging
 import logging.handlers
+from mock import Mock
 
 import sys, os
 sys.path.append(os.path.abspath("."))
@@ -29,20 +30,34 @@ redis_host = "localhost"
 '''
 Job Tests
 '''
-class Test_PollTwitter(unittest.TestCase):
+
+class Test_Job(unittest.TestCase):
     def setUp(self):
-        twonbe = twonbe.TwonbeDaemon()
+        twonbe.tob = Mock()
+        print twonbe.tob
+    
+class Test_PollTwitter(Test_Job):
+    def setUp(self):
+        self.expected_request = "http://search.twitter.com/search.json?q=%23beatify&result_type=recent"
+        self.expected_request_lastprocessed = "http://search.twitter.com/search.json?q=%23beatify&result_type=recent&since_id=12345"
+        self.poll = twonbe.PollTwitter("test")
     
     def test_buildRequest(self):
-        stub = True
+        test = self.poll.buildRequest()
+        self.assertEqual(test, self.expected_request)
     
-    
-    
+    def test_buildRequestWithLastProcessedId(self):
+        self.poll.lastProcessedId = "12345"
+        test = self.poll.buildRequest()
+        self.assertEqual(test, self.expected_request_lastprocessed)
 
+    def test_Polling(self):
+        test = True
 
 '''
 Utility Tests
 '''
+
 class Test_Utility(unittest.TestCase):
     def setUp(self):
         self.util = twonbe.Utility()
@@ -149,5 +164,4 @@ class Test_delete(Test_Utility):
         self.assertRaises(twonbe.TwonbeError, self.util.delete, self.bad_dir)
         
     def test_noRights(self):
-        self.assertRaises(twonbe.TwonbeError, self.util.delete, self.no_rights)
-            
+        self.assertRaises(twonbe.TwonbeError, self.util.delete, self.no_rights)       

@@ -124,8 +124,8 @@ class Job(threading.Thread):
         self.elapsed = 0
         self.util = Utility()
         self.timer = threading.Event()
-        global twonbe
-        self.twonbe = twonbe
+        global tob
+        self.twonbe = tob
         
         # Configuration directives
         self.log = logging.getLogger(name)
@@ -195,6 +195,8 @@ class PollTwitter(Job):
             self.log.debug('Found no data in this job - scheduling next one.')
             self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
             return False
+        
+    
     
     def buildRequest(self):
         # Build polling request
@@ -662,10 +664,10 @@ class TwonbeError(Exception):
 Implementation
 '''
 def main():
-    global twonbe
-    twonbe = TwonbeDaemon()
-    twonbe.addJob(PollTwitter("0"))
-    twonbe.start()
+    global tob
+    tob = TwonbeDaemon()
+    tob.addJob(PollTwitter("0"))
+    tob.start()
 
 if __name__ == "__main__":
     try:
