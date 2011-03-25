@@ -7,6 +7,7 @@ Version 2.0 - a shiteload better.
 Written by /rob, 11 March 2011
 '''
 import threading
+import Queue
 import logging
 import logging.handlers
 import urllib
@@ -37,12 +38,12 @@ Main Daemon
 Broker for all Twonbe jobs
 '''
 class TwonbeDaemon(threading.Thread):
-    def __init__(self, interval=10):
+    def __init__(self, queue):
         self.elapsed = 0
         self.fault = False
-        self.interval = interval
         self.util = Utility() 
         self.jobs = []
+        self.queue = queue
         threading.Thread.__init__(self)
 
         # Configuration directives
@@ -62,8 +63,6 @@ class TwonbeDaemon(threading.Thread):
                     self.process()
                 except Exception as e:
                     raise TwonbeError(e, "Error encountered processing job.")
-                #self.check()
-                self.elapsed = self.elapsed + self.interval
         except KeyboardInterrupt:
             print "\nDone!"
 
@@ -71,52 +70,29 @@ class TwonbeDaemon(threading.Thread):
         # Process job queue
         global logging_level
         if logging_level == logging.DEBUG and self.jobs:
-            self.log.debug("Job queue: %s" % (str(len(self.jobs))))
-        if self.jobs:
-            for job in self.jobs:
-                try:
-                    self.log.info("Processing job: %s" % (job.name))
-                    job.elapsed = 0
-                    job.start()
-                    self.removeJob(job)
-                except Exception as e:
-                    self.stop()
-                    raise TwonbeError(e, "encountered error with job: %s" % (job.name))
-    
-    def addJob(self, job):
-        self.log.debug("Adding new %s job: %s" % (job.name, job.id))
-        try:
-            self.jobs.append(job)
-        except Exception as e:
-            raise TwonbeError(e, "encountered error adding %s job: %s" % (job.name, job.id))
-        return self.log.debug("Added new %s job: %s" % (job.name, job.id))
-    
-    def removeJob(self, job):
-        self.log.debug("Removing %s job: %s" % (job.name, job.id))
-        try:
-            self.jobs.remove(job)
-        except Exception as e:
-            raise TwonbeError(e, "encountered error adding %s job: %s" % (job.name, job.id))
-        return self.log.debug("Removed %s job: %s" % (job.name, job.id))
+            self.log.debug("Job queue: %s" % (str(self.queue.qsize())))
+        if not self.queue.empty():
+            job = self.queue.get()
+            try:
+                self.log.info("Processing job: %s" % (job.name))
+                job.start()
+            except Exception as e:
+                self.stop()
+                raise TwonbeError(e, "encountered error with job: %s" % (job.name))
     
     def stop(self):
         self.log.debug("Stop command received.")
         self.fault = True
         return self.log.info("Stop command issued.")
-    
-    def check(self):
-        # Extend this function to run your own check to see if loop should keep running.
-        self.log.debug("Running checks to stop daemon.")
-        return self.log.debug("No reason to stop daemon.")
 
-        
+
 '''
 Object for Jobs
 
 Extend this object and add to TwonbeDaemon object to queue and process.
 '''
 class Job(threading.Thread):
-    def __init__(self, name, id, interval=None):
+    def __init__(self, name, id, queue, interval=None):
         threading.Thread.__init__(self)
         self.name = name   
         self.id = id
@@ -124,8 +100,7 @@ class Job(threading.Thread):
         self.elapsed = 0
         self.util = Utility()
         self.timer = threading.Event()
-        global tob
-        self.twonbe = tob
+        self.queue = queue
         
         # Configuration directives
         self.log = logging.getLogger(name)
@@ -160,10 +135,10 @@ Jobs
 These are the individual jobs chained together to convert a tweet into a Twonbe
 '''
 class PollTwitter(Job):
-    def __init__(self, id, lastProcessedId=None):
+    def __init__(self, id, queue, lastProcessedId=None):
         self.id = id
         self.lastProcessedId = lastProcessedId
-        Job.__init__(self, "PollTwitter", id, 30)
+        Job.__init__(self, "PollTwitter", id, queue, 30)
     
     def process(self):
         self.log.debug("Starting to process polling job.")
@@ -173,7 +148,7 @@ class PollTwitter(Job):
                 data = self.util.request(path)
             except:
                 self.log.error("Error polling Twitter.")
-                self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
+                self.queue.put(PollTwitter(str(int(self.id) + 1), self.queue, self.lastProcessedId))
                 return False
         else:
             raise TwonbeError("Error polling", "Could not build request path.")
@@ -182,18 +157,18 @@ class PollTwitter(Job):
             if data['results']:
                 for tweet in reversed(data['results']):
                     self.log.debug("Queueing up tweet to be checked: %s" % (tweet['id_str']))
-                    self.twonbe.addJob(CheckTweet(tweet['id_str'], tweet))
+                    self.queue.put(CheckTweet(tweet['id_str'], self.queue, tweet))
                     lastProcessedId = tweet['id_str']
                 self.log.debug('Completed poll - scheduling next one.')
-                self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), lastProcessedId))
+                self.queue.put(PollTwitter(str(int(self.id) + 1), self.queue, lastProcessedId))
                 return True
             else:
                 self.log.debug("No results returned.")
-                self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
+                self.queue.put(PollTwitter(str(int(self.id) + 1), self.queue, self.lastProcessedId))
                 return False
         else:
             self.log.debug('Found no data in this job - scheduling next one.')
-            self.twonbe.addJob(PollTwitter(str(int(self.id) + 1), self.lastProcessedId))
+            self.queue.put(PollTwitter(str(int(self.id) + 1), self.queue, self.lastProcessedId))
             return False
         
     
@@ -217,11 +192,11 @@ class PollTwitter(Job):
         return searchapi + "/search.json?" + urllib.urlencode(params)
 
 class CheckTweet(Job):
-    def __init__(self, id, tweet):
+    def __init__(self, id, queue, tweet):
         self.id = id
         self.tweet = tweet
         self.limit = 600
-        Job.__init__(self, "CheckTweet", id)
+        Job.__init__(self, "CheckTweet", id, queue)
         
     def process(self):
         if self.isNotEnglish() or self.isAttempted():
@@ -229,7 +204,7 @@ class CheckTweet(Job):
             return False
         else:
             self.log.info("Tweet passes initial checks - filtering.")
-            return self.twonbe.addJob(FilterTweet(self.id, self.tweet))
+            return self.queue.put(FilterTweet(self.id, self.queue, self.tweet))
     
     def isAttempted(self):
         self.log.debug("Checking if tweet has been attempted before...")
@@ -263,10 +238,10 @@ class CheckTweet(Job):
             return True
 
 class FilterTweet(Job):
-    def __init__(self, id, tweet):
+    def __init__(self, id, queue, tweet):
         self.id = id
         self.tweet = tweet
-        Job.__init__(self, "FilterTweet", id)
+        Job.__init__(self, "FilterTweet", id, queue)
     
     def process(self):
         self.log.debug("Filtering string: %s" % (self.tweet['text']))
@@ -278,7 +253,7 @@ class FilterTweet(Job):
         if input:
             self.log.debug("String filtered as: %s" % (input))
             self.tweet['filtered_text'] = input
-        return self.twonbe.addJob(GenderCheck(self.id, self.tweet))
+        return self.queue.put(GenderCheck(self.id, self.queue, self.tweet))
     
     def filterUris(self, input):
         if "http" in input:
@@ -319,11 +294,11 @@ class FilterTweet(Job):
         return output   
     
 class GenderCheck(Job):
-    def __init__(self, id, tweet):
+    def __init__(self, id, queue, tweet):
         self.id = id
         self.tweet = tweet
         self.face = face_client.FaceClient()
-        Job.__init__(self, "GenderCheck", id)
+        Job.__init__(self, "GenderCheck", id, queue)
         
     def process(self):
         try:
@@ -338,18 +313,18 @@ class GenderCheck(Job):
         else:
             gender = "neuter"
         self.tweet['gender'] = gender
-        return self.twonbe.addJob(SynthesizeTweet(self.id, self.tweet))
+        return self.queue.put(SynthesizeTweet(self.id, self.queue, self.tweet))
                     
     def detect(self, uri):
         return self.face.faces_detect(uri)
 
 class SynthesizeTweet(Job):
-    def __init__(self, id, tweet):
+    def __init__(self, id, queue, tweet):
         self.id = id
         self.tweet = tweet
         self.voice = "usenglishfemale1"
         self.hash = None
-        Job.__init__(self, "SynthesizeTweet", id)
+        Job.__init__(self, "SynthesizeTweet", id, queue)
         
     def process(self):
         self.log.debug("Synthesizing filtered text...")
@@ -357,7 +332,7 @@ class SynthesizeTweet(Job):
         voice = self.getVoice(self.tweet['gender'])
         vox = self.downloadVox(voice, self.tweet['filtered_text'])
         self.tweet['vox_path'] = self.writeVox(hash, vox)
-        return self.twonbe.addJob(MixTwonbe(self.id, self.tweet))
+        return self.queue.put(MixTwonbe(self.id, self.queue, self.tweet))
            
     def getVoice(self, gender):
         if gender == "female":
@@ -380,7 +355,7 @@ class SynthesizeTweet(Job):
         return "/tmp/" + str(hash) + ".mp3"
     
 class MixTwonbe(Job):
-    def __init__(self, id, tweet):
+    def __init__(self, id, queue, tweet):
         self.id = id
         self.tweet = tweet
         
@@ -399,7 +374,7 @@ class MixTwonbe(Job):
         self.voice_length = os.path.getsize(self.vox) / 7452
         self.almost_full_length = int(self.offset + self.voice_length + 1)
         
-        Job.__init__(self, "MixTwonbe", id)
+        Job.__init__(self, "MixTwonbe", id, queue)
         
     def process(self):
         # Generate mixing temporary filenames.
@@ -439,7 +414,7 @@ class MixTwonbe(Job):
         self.tweet['twonbe'] = self.final_tmp
         
         # Queue up next job
-        return self.twonbe.addJob(UploadTwonbe(self.id, self.tweet))
+        return self.queue.put(UploadTwonbe(self.id, self.queue, self.tweet))
     
     def convertVox(self):
         self.log.debug("Mixing TwOnBe...")
@@ -492,10 +467,10 @@ class MixTwonbe(Job):
         return "/tmp/tweetsonbeats-" + name + str(random.randint(1, 9999)) + ext
 
 class UploadTwonbe(Job):
-    def __init__(self, id, tweet):
+    def __init__(self, id, queue, tweet):
         self.id = id
         self.tweet = tweet
-        Job.__init__(self, "UploadTwonbe", id)
+        Job.__init__(self, "UploadTwonbe", id, queue)
     
     def process(self):
         self.log.debug("Uploading TwOnBe...")
@@ -508,11 +483,11 @@ class UploadTwonbe(Job):
         self.log.debug("Twonbe uploaded here: %s" % (output))
         self.tweet['soundcloud_path'] = output
         self.log.debug("Queueing cleanup of files:")
-        self.twonbe.addJob(CleanupTwonbe(self.id, self.tweet))
-        return self.twonbe.addJob(TweetTwonbe(self.id, self.tweet))
+        self.queue.put(CleanupTwonbe(self.id, self.queue, self.tweet))
+        self.queue.put(TweetTwonbe(self.id, self.queue, self.tweet))
 
 class TweetTwonbe(Job):
-    def __init__(self, id, tweet):
+    def __init__(self, id, queue, tweet):
         self.id = id
         self.tweet = tweet
         # Twitter credentials
@@ -520,7 +495,7 @@ class TweetTwonbe(Job):
         self.consumer_secret = "25hF3WTQ6h9njyqgS2V9a0jQ2MBkePdBwBshA5IajlY"
         self.access_token = "251275058-4xfy2Bw1MR6fW1KHdz61px1NzPO7ao5i8E46U0NR"
         self.access_secret = "6O2kYW5osJMXDfvlxu3Bj9nZcSctxNrpNMxAq8HhcbI"      
-        Job.__init__(self, "TweetTwonbe", id)
+        Job.__init__(self, "TweetTwonbe", id, queue)
     
     def process(self):
         template = self.getTemplate()        
@@ -545,10 +520,10 @@ class TweetTwonbe(Job):
         return self.util.redis.sadd("processed", self.tweet['id_str'])
 
 class CleanupTwonbe(Job):
-    def __init__(self, id, cleanup):
+    def __init__(self, id, queue, cleanup):
         self.id = id
         self.cleanup = cleanup
-        Job.__init__(self, "TweetTwonbe", id)
+        Job.__init__(self, "TweetTwonbe", id, queue)
         
     def process(self):
         cleanuplist = [self.tweet['vox_tmp'], self.tweet['vox_tmp2'], self.tweet['beat_tmp'], self.tweet['mix_tmp'], self.tweet['twonbe'], self.tweet['vox_path']]
@@ -664,9 +639,9 @@ class TwonbeError(Exception):
 Implementation
 '''
 def main():
-    global tob
-    tob = TwonbeDaemon()
-    tob.addJob(PollTwitter("0"))
+    queue = Queue.Queue(0)
+    tob = TwonbeDaemon(queue)
+    queue.put(PollTwitter("0", queue))
     tob.start()
 
 if __name__ == "__main__":
