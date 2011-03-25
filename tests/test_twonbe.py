@@ -13,34 +13,21 @@ import sys, os
 sys.path.append(os.path.abspath("."))
 import twonbe
 
-
-'''
-Configuration variables
-'''
-searchapi = "http://search.twitter.com"
-keyword = "#beatify"
-logging_level = logging.INFO
-log_handler = logging.handlers.RotatingFileHandler("tweetsonbeats_test.log", maxBytes=524288000, backupCount=5) 
-log_formatter = logging.Formatter('%(asctime)s::%(name)s::%(levelname)s::%(message)s')
-log_handler.setFormatter(log_formatter)
-logging.basicConfig()
-redis_host = "localhost"
-
-
 '''
 Job Tests
 '''
 
 class Test_Job(unittest.TestCase):
     def setUp(self):
-        twonbe.tob = Mock()
-        print twonbe.tob
+        self.queue = Mock()
+        self.tweet = {'iso_language_code': 'en', 'to_user_id_str': None, 'text': 'This is not a test of the emergency broadcasting system.  It\'s the real thing. #beatify', 'from_user_id_str': '229093598', 'profile_image_url': 'http://a3.twimg.com/sticky/default_profile_images/default_profile_6_normal.png', 'id': 50873958400147456L, 'source': '&lt;a href=&quot;http://twitter.com/&quot;&gt;web&lt;/a&gt;', 'id_str': '50873958400147456', 'from_user': 'twonbe', 'from_user_id': 229093598, 'to_user_id': None, 'geo': None, 'created_at': 'Thu, 24 Mar 2011 10:57:51 +0000', 'metadata': {'result_type': 'recent'}}
     
 class Test_PollTwitter(Test_Job):
     def setUp(self):
+        Test_Job.setUp(self)
         self.expected_request = "http://search.twitter.com/search.json?q=%23beatify&result_type=recent"
         self.expected_request_lastprocessed = "http://search.twitter.com/search.json?q=%23beatify&result_type=recent&since_id=12345"
-        self.poll = twonbe.PollTwitter("test")
+        self.poll = twonbe.PollTwitter("0", self.queue)
     
     def test_buildRequest(self):
         test = self.poll.buildRequest()
@@ -52,12 +39,32 @@ class Test_PollTwitter(Test_Job):
         self.assertEqual(test, self.expected_request_lastprocessed)
 
     def test_Polling(self):
-        test = True
+        test = self.poll.process()
+        self.assertTrue(test)
+        
+class Test_CheckTweet(Test_Job):
+    def setUp(self):
+        Test_Job.setUp(self)
+        self.spanish_tweet = self.tweet
+        self.spanish_tweet['iso_language_code'] = "es"
+        
+    def Test_isAttempted(self):
+        stub = True
+    
+    def Test_isOld(self):
+        stub = True
+        
+    def Test_isNotEnglish(self):
+        stub = True
+    
+    def Test_process(self):
+        stub = True
+        
 
 '''
 Utility Tests
 '''
-
+'''
 class Test_Utility(unittest.TestCase):
     def setUp(self):
         self.util = twonbe.Utility()
@@ -164,4 +171,5 @@ class Test_delete(Test_Utility):
         self.assertRaises(twonbe.TwonbeError, self.util.delete, self.bad_dir)
         
     def test_noRights(self):
-        self.assertRaises(twonbe.TwonbeError, self.util.delete, self.no_rights)       
+        self.assertRaises(twonbe.TwonbeError, self.util.delete, self.no_rights)
+'''       

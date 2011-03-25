@@ -153,25 +153,18 @@ class PollTwitter(Job):
         else:
             raise TwonbeError("Error polling", "Could not build request path.")
         
-        if data:
-            if data['results']:
-                for tweet in reversed(data['results']):
-                    self.log.debug("Queueing up tweet to be checked: %s" % (tweet['id_str']))
-                    self.queue.put(CheckTweet(tweet['id_str'], self.queue, tweet))
-                    lastProcessedId = tweet['id_str']
-                self.log.debug('Completed poll - scheduling next one.')
-                self.queue.put(PollTwitter(str(int(self.id) + 1), self.queue, lastProcessedId))
-                return True
-            else:
-                self.log.debug("No results returned.")
-                self.queue.put(PollTwitter(str(int(self.id) + 1), self.queue, self.lastProcessedId))
-                return False
+        if data and data['results']:
+            for tweet in reversed(data['results']):
+                self.log.debug("Queueing up tweet to be checked: %s" % (tweet['id_str']))
+                self.queue.put(CheckTweet(tweet['id_str'], self.queue, tweet))
+                lastProcessedId = tweet['id_str']
+            self.log.debug('Completed poll - scheduling next one.')
+            self.queue.put(PollTwitter(str(int(self.id) + 1), self.queue, lastProcessedId))
+            return True
         else:
-            self.log.debug('Found no data in this job - scheduling next one.')
+            self.log.debug("No results returned.")
             self.queue.put(PollTwitter(str(int(self.id) + 1), self.queue, self.lastProcessedId))
             return False
-        
-    
     
     def buildRequest(self):
         # Build polling request
