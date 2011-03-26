@@ -8,6 +8,7 @@ import unittest
 import logging
 import logging.handlers
 from mock import Mock
+import datetime
 
 import sys, os
 sys.path.append(os.path.abspath("."))
@@ -19,9 +20,10 @@ Job Tests
 
 class Test_Job(unittest.TestCase):
     def setUp(self):
+        self.util = twonbe.Utility()
         self.queue = Mock()
         self.tweet = {'iso_language_code': 'en', 'to_user_id_str': None, 'text': 'This is not a test of the emergency broadcasting system.  It\'s the real thing. #beatify', 'from_user_id_str': '229093598', 'profile_image_url': 'http://a3.twimg.com/sticky/default_profile_images/default_profile_6_normal.png', 'id': 50873958400147456L, 'source': '&lt;a href=&quot;http://twitter.com/&quot;&gt;web&lt;/a&gt;', 'id_str': '50873958400147456', 'from_user': 'twonbe', 'from_user_id': 229093598, 'to_user_id': None, 'geo': None, 'created_at': 'Thu, 24 Mar 2011 10:57:51 +0000', 'metadata': {'result_type': 'recent'}}
-    
+'''    
 class Test_PollTwitter(Test_Job):
     def setUp(self):
         Test_Job.setUp(self)
@@ -41,24 +43,58 @@ class Test_PollTwitter(Test_Job):
     def test_Polling(self):
         test = self.poll.process()
         self.assertTrue(test)
-        
+'''    
 class Test_CheckTweet(Test_Job):
     def setUp(self):
         Test_Job.setUp(self)
+        # Set up mock tweets
         self.spanish_tweet = self.tweet
         self.spanish_tweet['iso_language_code'] = "es"
-        
-    def Test_isAttempted(self):
-        stub = True
+        self.retweet = self.tweet
+        self.retweet['text'] = "RT: This is a retweet test."
+        self.old = self.tweet
+        self.new = self.tweet
+        self.new['created_at'] = datetime.datetime.strftime(datetime.datetime.utcnow(), "%a, %d %b %Y %H:%M:%S")
+        self.util.redis.sadd("test_attempted", self.tweet['id_str'])
     
-    def Test_isOld(self):
-        stub = True
+    def tearDown(self):
+        self.util.redis.delete("test_attempted")
         
-    def Test_isNotEnglish(self):
-        stub = True
+    def test_isAttempted(self):
+        check = twonbe.CheckTweet("0", self.queue, self.tweet)
+        test = check.isAttempted()
+        self.assertTrue(test, "Result was instead: %s" % str(test))
     
-    def Test_process(self):
-        stub = True
+    def test_isNotAttempted(self):
+        self.util.redis.srem("test_attempted", self.tweet['id_str'])
+        check = twonbe.CheckTweet("0", self.queue, self.tweet)
+        test = check.isAttempted()
+        self.assertFalse(test, "Result was instead: %s" % str(test))
+
+    def test_isOld(self):
+        check = twonbe.CheckTweet("0", self.queue, self.old)
+        test = check.isOld()
+        self.assertTrue(test, "Result was instead: %s" % str(test))
+ 
+    def test_isNew(self):
+        check = twonbe.CheckTweet("0", self.queue, self.new)
+        test = check.isOld()
+        self.assertFalse(test, "Result was instead: %s" % str(test))
+        
+    def test_isNotEnglish(self):
+        check = twonbe.CheckTweet("0", self.queue, self.spanish_tweet)
+        test = check.isNotEnglish()
+        self.assertTrue(test, "Result was instead: %s" % str(test))
+    
+    def test_processFail(self):
+        check = twonbe.CheckTweet("0", self.queue, self.tweet)
+        test = check.process()
+        self.assertFalse(test, "Result was instead: %s" % str(test))
+    
+    def test_processSuccess(self):
+        check = twonbe.CheckTweet("0", self.queue, self.new)
+        test = check.process()
+        self.assertTrue(test, "Result was instead: %s" % str(test))
         
 
 '''

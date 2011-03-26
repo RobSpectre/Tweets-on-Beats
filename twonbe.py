@@ -192,13 +192,14 @@ class CheckTweet(Job):
         Job.__init__(self, "CheckTweet", id, queue)
         
     def process(self):
-        if self.isNotEnglish() or self.isAttempted():
+        if self.isNotEnglish() or self.isAttempted() or self.isOld():
             self.log.debug("Tweet does not pass initial checks - skipping.")
             return False
         else:
             self.log.info("Tweet passes initial checks - filtering.")
-            return self.queue.put(FilterTweet(self.id, self.queue, self.tweet))
-    
+            self.queue.put(FilterTweet(self.id, self.queue, self.tweet))
+            return True
+        
     def isAttempted(self):
         self.log.debug("Checking if tweet has been attempted before...")
         if self.util.redis.sadd("attempted", self.tweet['id_str']):
