@@ -188,7 +188,7 @@ class CheckTweet(Job):
         Job.__init__(self, "CheckTweet", id, queue)
         
     def process(self):
-        if self.isNotEnglish() or self.isAttempted() or self.isOld():
+        if self.isNotEnglish() or self.isAttempted() or self.isOld() or self.isRetweet():
             self.log.debug("Tweet does not pass initial checks - skipping.")
             return False
         else:
@@ -229,6 +229,12 @@ class CheckTweet(Job):
         else:
             self.log.debug("Tweet is not in English. Skipping.")
             return True
+    
+    def isRetweet(self):
+        if "RT" in self.tweet['text']:
+            return True
+        else:
+            return False
 
 class FilterTweet(Job):
     def __init__(self, id, queue, tweet):
@@ -246,14 +252,15 @@ class FilterTweet(Job):
         if input:
             self.log.debug("String filtered as: %s" % (input))
             self.tweet['filtered_text'] = input
-        return self.queue.put(GenderCheck(self.id, self.queue, self.tweet))
+        self.queue.put(GenderCheck(self.id, self.queue, self.tweet))
+        return True
     
     def filterUris(self, input):
         if "http" in input:
             t = input[input.find("http://"):]
-            t = t[:t.find(" ")]
+            if " " in t:
+                t = t[:t.find(" ")]
             output = input.replace(t, '')
-            output = output[:-1]
             return output
         else:
             return input
@@ -263,12 +270,13 @@ class FilterTweet(Job):
             pass
         elif "@" in input:
             t = input[input.find("@"):]
+            t = "@" + self.filterCharacters(t)
             self.log.debug("Replacing name %s with full name." % (t))
             if " " in t:
                 t = t[:t.find(" ")]
-                user = self.util.request("http://api.twitter.com/1/users/show.json?screen_name=" + t)
-                if user:
-                    return input.replace(t, user['name'])
+            user = self.util.request("http://api.twitter.com/1/users/show.json?screen_name=" + t)
+            if user:
+                return input.replace(t, user['name'])
         return input
         
     def filterTags(self, input):

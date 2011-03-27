@@ -52,6 +52,8 @@ class Test_CheckTweet(Test_Job):
         self.spanish_tweet['iso_language_code'] = "es"
         self.new = dict(self.tweet)
         self.new['created_at'] = datetime.datetime.strftime(datetime.datetime.utcnow(), "%a, %d %b %Y %H:%M:%S")
+        self.contains_rt = dict(self.tweet)
+        self.contains_rt['text'] = "RT This contains a retweet."
         self.util.redis.sadd("attempted", self.tweet['id_str'])
     
     def tearDown(self):
@@ -88,6 +90,16 @@ class Test_CheckTweet(Test_Job):
         check = twonbe.CheckTweet("0", self.queue, self.tweet)
         test = check.isNotEnglish()
         self.assertFalse(test, "Result was instead: %s" % str(test))
+        
+    def test_isRetweet(self):
+        check = twonbe.CheckTweet("0", self.queue, self.contains_rt)
+        test = check.isRetweet()
+        self.assertTrue(test, "Result was instead: %s" % str(test))
+    
+    def test_isNotRetweet(self):
+        check = twonbe.CheckTweet("0", self.queue, self.tweet)
+        test = check.isRetweet()
+        self.assertFalse(test, "Result was instead: %s" % str(test))
     
     def test_processFail(self):
         check = twonbe.CheckTweet("0", self.queue, self.tweet)
@@ -101,8 +113,35 @@ class Test_CheckTweet(Test_Job):
         self.assertTrue(test, "Result was instead: %s" % str(test))
 '''
 
+class Test_CheckTweet(Test_Job):
+    def setUp(self):
+        Test_Job.setUp(self)
+        self.tweet['text'] = "This tweet $!%# contains http://loadsof.junk with other @dn0t"
+        self.contains_uri = "This contains a link http://example.com"
+        self.contains_hashtag = "This tweet contains a #hashtag."
+        self.contains_reply = "This tweet contains a reference to @dN0t."
+        self.contains_characters = "This tweet !# contains $% a bunch of %^ characters &*()"
+        self.filter = twonbe.FilterTweet("0", self.queue, self.tweet)
+        
+    def test_filterUris(self):
+        test = self.filter.filterUris(self.contains_uri)
+        self.assertEqual(test, "This contains a link ")
     
-
+    def test_filterReplies(self):
+        test = self.filter.filterReplies(self.contains_reply)
+        self.assertEqual(test, "This tweet contains a reference to Rob Spectre.")
+        
+    def test_filterTags(self):
+        test = self.filter.filterTags(self.contains_hashtag)
+        self.assertEqual(test, "This tweet contains a ")
+        
+    def test_filterCharacters(self):
+        test = self.filter.filterCharacters(self.contains_characters)
+        self.assertEqual(test, "This tweet  contains  a bunch of  characters ")
+    
+    def test_processSuccess(self):       
+        test = self.filter.process()
+        self.assertEqual(self.filter.tweet['filtered_text'], "This tweet  contains  with other Rob Spectre")
 '''
 Utility Tests
 '''
