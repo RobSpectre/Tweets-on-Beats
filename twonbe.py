@@ -48,9 +48,7 @@ class TwonbeDaemon(threading.Thread):
 
         # Configuration directives
         self.log = logging.getLogger("TwonbeDaemon")  
-        global logging_level
         self.log.setLevel(logging_level)
-        global log_handler
         self.log.addHandler(log_handler)
         self.log.info("Initialized.")
 
@@ -104,9 +102,7 @@ class Job(threading.Thread):
         
         # Configuration directives
         self.log = logging.getLogger(name)
-        global logging_level
         self.log.setLevel(logging_level)
-        global log_handler
         self.log.addHandler(log_handler)
         self.log.debug("Created %s job: %s" % (self.name, self.id))
     
@@ -215,6 +211,9 @@ class CheckTweet(Job):
         timestamp = self.tweet['created_at'].replace(" +0000", "")
         then = datetime.datetime.strptime(timestamp, "%a, %d %b %Y %H:%M:%S")
         delta = now - then
+        self.log.debug(str(now))
+        self.log.debug(str(then))
+        self.log.debug(str(delta))
         if delta.seconds < self.limit:
             self.log.debug("Tweet is not too old.")
             return False
@@ -541,9 +540,7 @@ class Utility(object):
         self.hash = None
         global logging_level
         self.log.setLevel(logging_level)
-        global log_handler
         self.log.addHandler(log_handler)
-        global redis_host
         self.redis = redis.Redis(redis_host)
     
     def timestr(self, seconds):
@@ -613,9 +610,7 @@ class TwonbeError(Exception):
         Exception.__init__(self, message)
         # Configuration directives
         self.log = logging.getLogger("TwonbeError")
-        global logging_level
         self.log.setLevel(logging_level)
-        global log_handler
         self.log.addHandler(log_handler)
         if logging_level == logging.DEBUG:
             self.errorOut(message, e)
