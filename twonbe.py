@@ -303,6 +303,8 @@ class GenderCheck(Job):
         
     def process(self):
         try:
+            if "normal" in self.tweet['profile_image_url']:
+                self.tweet['profile_image_url'] = self.tweet['profile_image_url'].replace("normal", "bigger")
             detection = self.detect(self.tweet['profile_image_url'])
         except face_client.FaceError:
             gender = "neuter"

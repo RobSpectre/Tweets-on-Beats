@@ -111,7 +111,6 @@ class Test_CheckTweet(Test_Job):
         check = twonbe.CheckTweet("0", self.queue, self.new)
         test = check.process()
         self.assertTrue(test, "Result was instead: %s" % str(test))
-'''
 
 class Test_CheckTweet(Test_Job):
     def setUp(self):
@@ -142,6 +141,30 @@ class Test_CheckTweet(Test_Job):
     def test_processSuccess(self):       
         test = self.filter.process()
         self.assertEqual(self.filter.tweet['filtered_text'], "This tweet  contains  with other Rob Spectre")
+'''
+class Test_GenderCheck(Test_Job):
+    def setUp(self):
+        Test_Job.setUp(self)
+        self.female = dict(self.tweet)
+        self.female['profile_image_url'] = "http://a3.twimg.com/profile_images/1276454240/image_normal.jpg"
+        self.male = dict(self.tweet)
+        self.male['profile_image_url'] = "http://a1.twimg.com/profile_images/1224885280/pic_normal.jpg"
+        
+    def test_processMale(self):
+        check = twonbe.GenderCheck("0", self.queue, self.male)
+        test = check.process()
+        self.assertEqual(check.tweet['gender'], "male")
+        
+    def test_processFemale(self):
+        check = twonbe.GenderCheck("0", self.queue, self.female)
+        test = check.process()
+        self.assertEqual(check.tweet['gender'], "female")
+    
+    def test_processNeuter(self):
+        check = twonbe.GenderCheck("0", self.queue, self.tweet)
+        test = check.process()
+        self.assertEqual(check.tweet['gender'], "neuter")
+
 '''
 Utility Tests
 '''
