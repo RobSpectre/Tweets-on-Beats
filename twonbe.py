@@ -344,6 +344,7 @@ class SynthesizeTweet(Job):
             return "usenglishmale1"
     
     def downloadVox(self, voice, text):
+        self.log.debug("Downloading vox...")
         path = "https://api.ispeech.org/api/rest/?"
         params = {
             'apikey': "38fcab81215eb701f711df929b793a89",
@@ -352,6 +353,13 @@ class SynthesizeTweet(Job):
             'speed': -2,
             'text': text
         }
+        vox = self.util.request(path, params)
+        if vox:
+            self.log.debug("Vox downloaded.")
+            return vox
+        else:
+            self.log.error("Failed to download vox!")
+            return False
     
     def writeVox(self, hash, vox):
         self.util.write("/tmp/" + str(hash) + ".mp3", vox)
@@ -569,15 +577,17 @@ class Utility(object):
     
     def request(self, path, params=None):
         # Add debugging to post if logging level is debug
-        global logging_level
         if logging_level == logging.DEBUG:
             h=urllib2.HTTPHandler(debuglevel=1)
             opener = urllib2.build_opener(h)
             urllib2.install_opener(opener)
-        if "http://" not in path:
+        if "http" not in path:
+            self.log.debug("Path is not a URI - skipping.")
             return False
         if params:
+            self.log.debug("Making post request...")
             request = urllib2.Request(path, urllib.urlencode(params))
+            print request
         else:
             request = urllib2.Request(path)
         self.log.debug("Retrieving URI: %s" % (path))

@@ -23,7 +23,7 @@ class Test_Job(unittest.TestCase):
         self.util = twonbe.Utility()
         self.queue = Mock()
         self.tweet = {'iso_language_code': 'en', 'to_user_id_str': None, 'text': 'This is not a test of the emergency broadcasting system.  It\'s the real thing. #beatify', 'from_user_id_str': '229093598', 'profile_image_url': 'http://a3.twimg.com/sticky/default_profile_images/default_profile_6_normal.png', 'id': 50873958400147456L, 'source': '&lt;a href=&quot;http://twitter.com/&quot;&gt;web&lt;/a&gt;', 'id_str': '50873958400147456', 'from_user': 'twonbe', 'from_user_id': 229093598, 'to_user_id': None, 'geo': None, 'created_at': 'Thu, 24 Mar 2011 10:57:51 +0000', 'metadata': {'result_type': 'recent'}}
-'''    
+   
 class Test_PollTwitter(Test_Job):
     def setUp(self):
         Test_Job.setUp(self)
@@ -42,7 +42,7 @@ class Test_PollTwitter(Test_Job):
 
     def test_Polling(self):
         test = self.poll.process()
-        self.assertTrue(test)
+        self.assertTrue(test, "Result: %s" % (test))
 
 class Test_CheckTweet(Test_Job):
     def setUp(self):
@@ -141,7 +141,7 @@ class Test_CheckTweet(Test_Job):
     def test_processSuccess(self):       
         test = self.filter.process()
         self.assertEqual(self.filter.tweet['filtered_text'], "This tweet  contains  with other Rob Spectre")
-'''
+
 class Test_GenderCheck(Test_Job):
     def setUp(self):
         Test_Job.setUp(self)
@@ -165,10 +165,39 @@ class Test_GenderCheck(Test_Job):
         test = check.process()
         self.assertEqual(check.tweet['gender'], "neuter")
 
+class Test_SynthesizeTweet(Test_Job):
+    def setUp(self):
+        Test_Job.setUp(self)
+        self.synthesize = twonbe.SynthesizeTweet("0", self.queue, self.tweet)
+        
+    def test_getVoiceMale(self):
+        test = self.synthesize.getVoice("male")
+        self.assertEqual(test, "usenglishmale1")
+        
+    def test_getVoiceFemale(self):
+        test = self.synthesize.getVoice("female")
+        self.assertEqual(test, "usenglishfemale1")
+        
+    def test_getVoiceNeuter(self):
+        test = self.synthesize.getVoice("neuter")
+        self.assertEqual(test, "usenglishmale1")
+        
+    def test_downloadVoxMale(self):
+        test = self.synthesize.downloadVox("usenglishmale1", "This is just a test.  No kidding.")
+        test = self.synthesize.writeVox("test_synthesize_tweet", test)
+        size = os.path.getsize(test)
+        self.assertEqual(size, 18576)
+    
+    def test_downloadVoxFemale(self):
+        test = self.synthesize.downloadVox("usenglishfemale1", "This is just a test.  No kidding.")
+        test = self.synthesize.writeVox("test_synthesize_tweet", test)
+        size = os.path.getsize(test)
+        self.assertEqual(size, 18144)
+
 '''
 Utility Tests
 '''
-'''
+
 class Test_Utility(unittest.TestCase):
     def setUp(self):
         self.util = twonbe.Utility()
@@ -275,5 +304,4 @@ class Test_delete(Test_Utility):
         self.assertRaises(twonbe.TwonbeError, self.util.delete, self.bad_dir)
         
     def test_noRights(self):
-        self.assertRaises(twonbe.TwonbeError, self.util.delete, self.no_rights)
-'''       
+        self.assertRaises(twonbe.TwonbeError, self.util.delete, self.no_rights)       
