@@ -20,6 +20,8 @@ import os
 import tweepy
 import face_client
 import hashlib
+import subprocess
+import random
 
 '''
 Configuration variables
@@ -371,92 +373,106 @@ class MixTwonbe(Job):
         self.tweet = tweet
         
         # Vox, beat and outro raw files.
-        self.beat = self.getBeat()
         self.vox = self.tweet['vox_path']
-        self.outro = self.getOutro()
         
         # Volumes
         self.vox_volume = 0.7
         self.beat_volume = 0.6
         
-        # Mixing parameters
-        self.bpm = int(self.beat.split("_")[1])
-        self.offset= int((60.0/(self.bpm / 4))*2)
-        self.voice_length = os.path.getsize(self.vox) / 7452
-        self.almost_full_length = int(self.offset + self.voice_length + 1)
-        
         Job.__init__(self, "MixTwonbe", id, queue)
         
     def process(self):
+        self.log.debug("Mixing TwOnBe...")
+        
         # Generate mixing temporary filenames.
-        self.vox_tmp = self.tempFileName("v1")
-        self.vox_tmp2 = self.tempFileName("v2")
-        self.beat_tmp = self.tempFileName()
-        self.mix_tmp = self.tempFileName()
-        self.final_tmp = self.tempFileName("final")
+        beat = self.getBeat()
+        outro = self.getOutro()
+        vox_tmp = self.tempFileName("v1")
+        vox_tmp2 = self.tempFileName("v2")
+        beat_tmp = self.tempFileName()
+        mix_tmp = self.tempFileName()
+        final_tmp = self.tempFileName("final")
+        
+        params = self.setMixingParameters(beat)
         
         # Mix TwOnBe
         try:
-            self.convertVox()
+            vox_tmp = self.convertVox(vox, vox_tmp)
         except Exception as e:
             raise TwonbeError(e, "%s: %s failed to convert vox:" % (self.name, self.id))
         try:
-            self.offsetVox()
+            vox_tmp2 = self.offsetVox(vox_tmp, vox_tmp2)
         except Exception as e:
             raise TwonbeError(e, "%s: %s failed to offset vox:" % (self.name, self.id))
         try:
-            self.trimBeat()
+            beat_tmp = self.trimBeat(beat, beat_tmp)
         except Exception as e:
             raise TwonbeError(e, "%s: %s failed to trim beat:" % (self.name, self.id))
         try:
-            self.mixVoxAndBeat()
+            mix_tmp = self.mixVoxAndBeat(vox_tmp2, beat_tmp, mix_tmp)
         except Exception as e:
             raise TwonbeError(e, "%s: %s failed to mix vox and beat:" % (self.name, self.id))
         try:
-            self.mixOutro()
+            final_tmp = self.mixOutro(mix_tmp, outro, final_tmp)
         except Exception as e:
             raise TwonbeError(e, "%s: %s failed to mix outro:" % (self.name, self.id))
         
         # Add paths to tweet
-        self.tweet['vox_tmp'] = self.vox_tmp
-        self.tweet['vox_tmp2'] = self.vox_tmp2
-        self.tweet['beat_tmp'] = self.beat_tmp
-        self.tweet['mix_tmp'] = self.mix_tmp
-        self.tweet['twonbe'] = self.final_tmp
+        self.tweet['vox_tmp'] = vox_tmp
+        self.tweet['vox_tmp2'] = vox_tmp2
+        self.tweet['beat_tmp'] = beat_tmp
+        self.tweet['mix_tmp'] = mix_tmp
+        self.tweet['twonbe'] = final_tmp
         
         # Queue up next job
         return self.queue.put(UploadTwonbe(self.id, self.queue, self.tweet))
     
-    def convertVox(self):
-        self.log.debug("Mixing TwOnBe...")
+    def setMixingParameters(self, beat):
+        self.log.debug("Setting mixing parameters...")
+        # Mixing parameters
+        self.bpm = int(beat.split("_").pop().replace(".wav", ""))
+        self.offset= int((60.0/(self.bpm / 4))*2)
+        self.voice_length = os.path.getsize(self.vox) / 7452
+        self.almost_full_length = int(self.offset + self.voice_length + 1)
+        self.log.debug("Mixing parameters set.")
+    
+    def convertVox(self, vox, vox_tmp):
         self.log.debug("Converting vox...")
-        convert_vox = subprocess.Popen(["sox", "-G", self.vox, "-c", "2", self.vox_tmp, "rate", "44100"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        convert_vox = subprocess.Popen(["sox", "-G", vox, "-c", "2", vox_tmp, "rate", "44100"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         convert_vox.wait()
-        return self.log.debug(convert_vox.communicate())
+        self.log.debug(convert_vox.communicate())
+        self.log.debug("Vox converted.")
+        return vox_tmp
     
-    def offsetVox(self):
+    def offsetVox(self, vox_tmp, vox_tmp2):
+        self.log.debug("Offsetting vox...")
         self.log.debug("Mixing vox offset of " + str(self.offset))
-        offset_vox = subprocess.Popen(["sox", "-G", self.vox_tmp, self.vox_tmp2, "vol", str(self.vox_volume), "delay", str(self.offset), str(self.offset)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        offset_vox = subprocess.Popen(["sox", "-G", vox_tmp, vox_tmp2, "vol", str(self.vox_volume), "delay", str(self.offset), str(self.offset)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         offset_vox.wait()
-        return self.log.debug(str(offset_vox.communicate()))
+        self.log.debug(str(offset_vox.communicate()))
+        self.log.debug("Vox offset.")
+        return vox_tmp2
         
-    def trimBeat(self):
+    def trimBeat(self, beat, beat_tmp):
         self.log.debug("Trimming beat...")
-        trim_beat = subprocess.Popen(["sox", self.beat, self.beat_tmp, "trim", "0", str(self.almost_full_length), "vol", str(self.beat_volume)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        trim_beat = subprocess.Popen(["sox", beat, beat_tmp, "trim", "0", str(self.almost_full_length), "vol", str(self.beat_volume)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         trim_beat.wait()
-        return self.log.debug(str(trim_beat.communicate()))
+        self.log.debug(str(trim_beat.communicate()))
+        return beat_tmp
     
-    def mixVoxAndBeat(self):
+    def mixVoxAndBeat(self, vox_tmp2, beat_tmp, mix_tmp):
         self.log.debug("Mixing vox and beat...")
-        mix_vox_and_beat = subprocess.Popen(["sox", "-G", "-m", self.vox_tmp2, self.beat_tmp, self.mix_tmp], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        mix_vox_and_beat = subprocess.Popen(["sox", "-G", "-m", vox_tmp2, beat_tmp, mix_tmp], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         mix_vox_and_beat.wait()
-        return self.log.debug(str(mix_vox_and_beat.communicate()))
+        self.log.debug(str(mix_vox_and_beat.communicate()))
+        return mix_tmp
     
-    def mixOutro(self):
+    def mixOutro(self, mix_tmp, outro, final_tmp):
         self.log.debug("Mixing TwOnBe outro...")
-        mix_twonbe = subprocess.Popen(["sox", "-G",  self.mix_tmp, self.outro, self.final_tmp], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        mix_twonbe = subprocess.Popen(["sox", "-G",  mix_tmp, outro, final_tmp], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         mix_twonbe.wait()
-        return self.log.debug(str(mix_twonbe.communicate()))
+        self.log.debug(str(mix_twonbe.communicate()))
+        return final_tmp
                
     def getBeat(self):
         try:

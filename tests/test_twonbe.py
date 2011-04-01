@@ -22,8 +22,8 @@ class Test_Job(unittest.TestCase):
     def setUp(self):
         self.util = twonbe.Utility()
         self.queue = Mock()
-        self.tweet = {'iso_language_code': 'en', 'to_user_id_str': None, 'text': 'This is not a test of the emergency broadcasting system.  It\'s the real thing. #beatify', 'from_user_id_str': '229093598', 'profile_image_url': 'http://a3.twimg.com/sticky/default_profile_images/default_profile_6_normal.png', 'id': 50873958400147456L, 'source': '&lt;a href=&quot;http://twitter.com/&quot;&gt;web&lt;/a&gt;', 'id_str': '50873958400147456', 'from_user': 'twonbe', 'from_user_id': 229093598, 'to_user_id': None, 'geo': None, 'created_at': 'Thu, 24 Mar 2011 10:57:51 +0000', 'metadata': {'result_type': 'recent'}}
-   
+        self.tweet = {'iso_language_code': 'en', 'to_user_id_str': None, 'text': 'This is not a test of the emergency broadcasting system.  It\'s the real thing. #beatify', 'from_user_id_str': '229093598', 'profile_image_url': 'http://a3.twimg.com/sticky/default_profile_images/default_profile_6_normal.png', 'id': 50873958400147456L, 'source': '&lt;a href=&quot;http://twitter.com/&quot;&gt;web&lt;/a&gt;', 'id_str': '50873958400147456', 'from_user': 'twonbe', 'from_user_id': 229093598, 'to_user_id': None, 'geo': None, 'created_at': 'Thu, 24 Mar 2011 10:57:51 +0000', 'metadata': {'result_type': 'recent'}, 'vox_path': "./tests/assets/test_vox.mp3"}
+'''  
 class Test_PollTwitter(Test_Job):
     def setUp(self):
         Test_Job.setUp(self)
@@ -193,11 +193,66 @@ class Test_SynthesizeTweet(Test_Job):
         test = self.synthesize.writeVox("test_synthesize_tweet", test)
         size = os.path.getsize(test)
         self.assertEqual(size, 18144)
+'''
+class Test_MixTwonbe(Test_Job):
+    def setUp(self):
+        Test_Job.setUp(self)
+        self.mix = twonbe.MixTwonbe("0", self.queue, self.tweet)
+        self.params = self.mix.setMixingParameters("./tests/assets/test_beat_85.wav")
 
+    def test_convertVox(self):
+        test = self.mix.convertVox("./tests/assets/test_vox.mp3", "/tmp/test_vox_tmp.wav")
+        size = os.path.getsize("/tmp/test_vox_tmp.wav")
+        os.remove("/tmp/test_vox_tmp.wav")
+        self.assertEqual(size, 539828)
+    
+    def test_offsetVox(self):
+        test = self.mix.offsetVox("./tests/assets/test_vox_tmp.wav", "/tmp/test_vox_tmp2.wav")
+        size = os.path.getsize("/tmp/test_vox_tmp2.wav")
+        os.remove("/tmp/test_vox_tmp2.wav")
+        self.assertEqual(size, 1079612)
+    
+    def test_trimBeat(self):
+        test = self.mix.trimBeat("./tests/assets/test_beat_85.wav", "/tmp/test_beat_tmp.wav")
+        size = os.path.getsize("/tmp/test_beat_tmp.wav")
+        os.remove("/tmp/test_beat_tmp.wav")
+        self.assertEqual(size, 2116880)
+    
+    def test_mixVoxAndBeat(self):
+        test = self.mix.mixVoxAndBeat("./tests/assets/test_vox_tmp2.wav", "./tests/assets/test_beat_tmp.wav", "/tmp/test_mix_tmp.wav")
+        size = os.path.getsize("/tmp/test_mix_tmp.wav")
+        os.remove("/tmp/test_mix_tmp.wav")
+        self.assertEqual(size, 1411244)
+        
+    def test_mixOutro(self):
+        test = self.mix.mixOutro("./tests/assets/test_mix_tmp.wav", "./tests/assets/test_original.wav", "/tmp/test_final_tmp.wav")
+        size = os.path.getsize("/tmp/test_final_tmp.wav")
+        os.remove("/tmp/test_final_tmp.wav")
+        self.assertEqual(size, 3191654)
+    
+    def test_getBeat(self):
+        beats = os.listdir("./beats")
+        test = self.mix.getBeat()
+        if test.split("/").pop() in beats:
+            test = True
+        else:
+            test = False
+        self.assertTrue(test, "Result was instead: %s" % str(test))
+        
+    def test_getOutro(self):
+        outros = os.listdir("./outros")
+        test = self.mix.getOutro()
+        if test.split("/").pop() in outros:
+            test = True
+        else:
+            test = False
+        self.assertTrue(test, "Result was instead: %s" % str(test))
+    
+    
 '''
 Utility Tests
 '''
-
+'''
 class Test_Utility(unittest.TestCase):
     def setUp(self):
         self.util = twonbe.Utility()
@@ -304,4 +359,5 @@ class Test_delete(Test_Utility):
         self.assertRaises(twonbe.TwonbeError, self.util.delete, self.bad_dir)
         
     def test_noRights(self):
-        self.assertRaises(twonbe.TwonbeError, self.util.delete, self.no_rights)       
+        self.assertRaises(twonbe.TwonbeError, self.util.delete, self.no_rights)
+'''       
