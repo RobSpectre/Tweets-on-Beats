@@ -23,7 +23,7 @@ class Test_Job(unittest.TestCase):
         self.util = twonbe.Utility()
         self.queue = Mock()
         self.tweet = {'iso_language_code': 'en', 'to_user_id_str': None, 'text': 'This is not a test of the emergency broadcasting system.  It\'s the real thing. #beatify', 'from_user_id_str': '229093598', 'profile_image_url': 'http://a3.twimg.com/sticky/default_profile_images/default_profile_6_normal.png', 'id': 50873958400147456L, 'source': '&lt;a href=&quot;http://twitter.com/&quot;&gt;web&lt;/a&gt;', 'id_str': '50873958400147456', 'from_user': 'twonbe', 'from_user_id': 229093598, 'to_user_id': None, 'geo': None, 'created_at': 'Thu, 24 Mar 2011 10:57:51 +0000', 'metadata': {'result_type': 'recent'}, 'vox_path': "./tests/assets/test_vox.mp3"}
-'''  
+
 class Test_PollTwitter(Test_Job):
     def setUp(self):
         Test_Job.setUp(self)
@@ -193,7 +193,7 @@ class Test_SynthesizeTweet(Test_Job):
         test = self.synthesize.writeVox("test_synthesize_tweet", test)
         size = os.path.getsize(test)
         self.assertEqual(size, 18144)
-'''
+
 class Test_MixTwonbe(Test_Job):
     def setUp(self):
         Test_Job.setUp(self)
@@ -247,12 +247,12 @@ class Test_MixTwonbe(Test_Job):
         else:
             test = False
         self.assertTrue(test, "Result was instead: %s" % str(test))
-    
+        
     
 '''
 Utility Tests
 '''
-'''
+
 class Test_Utility(unittest.TestCase):
     def setUp(self):
         self.util = twonbe.Utility()
@@ -360,4 +360,3 @@ class Test_delete(Test_Utility):
         
     def test_noRights(self):
         self.assertRaises(twonbe.TwonbeError, self.util.delete, self.no_rights)
-'''       
