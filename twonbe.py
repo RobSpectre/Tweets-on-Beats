@@ -393,7 +393,7 @@ class MixTwonbe(Job):
         mix_tmp = self.tempFileName()
         final_tmp = self.tempFileName("final")
         
-        params = self.setMixingParameters(beat)
+        params = self.setMixingParameters(beat, self.vox)
         
         # Mix TwOnBe
         try:
@@ -427,12 +427,12 @@ class MixTwonbe(Job):
         # Queue up next job
         return self.queue.put(UploadTwonbe(self.id, self.queue, self.tweet))
     
-    def setMixingParameters(self, beat):
+    def setMixingParameters(self, beat, vox):
         self.log.debug("Setting mixing parameters...")
         # Mixing parameters
         self.bpm = int(beat.split("_").pop().replace(".wav", ""))
         self.offset= int((60.0/(self.bpm / 4))*2)
-        self.voice_length = os.path.getsize(self.vox) / 7452
+        self.voice_length = os.path.getsize(vox) / 7452
         self.almost_full_length = int(self.offset + self.voice_length + 1)
         self.log.debug("Mixing parameters set.")
     
