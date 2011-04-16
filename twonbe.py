@@ -397,7 +397,7 @@ class MixTwonbe(Job):
         
         # Mix TwOnBe
         try:
-            vox_tmp = self.convertVox(vox, vox_tmp)
+            vox_tmp = self.convertVox(self.vox, vox_tmp)
         except Exception as e:
             raise TwonbeError(e, "%s: %s failed to convert vox:" % (self.name, self.id))
         try:
@@ -430,10 +430,14 @@ class MixTwonbe(Job):
     def setMixingParameters(self, beat, vox):
         self.log.debug("Setting mixing parameters...")
         # Mixing parameters
-        self.bpm = int(beat.split("_").pop().replace(".wav", ""))
+        self.bpm = int(beat.split("_")[1])
+        self.log.debug("BPM set to: %i" % self.bpm)
         self.offset= int((60.0/(self.bpm / 4))*2)
+        self.log.debug("Offset set to: %i" % self.offset)
         self.voice_length = os.path.getsize(vox) / 7452
+        self.log.debug("Voice length set to: %i" % self.voice_length)
         self.almost_full_length = int(self.offset + self.voice_length + 1)
+        self.log.debug("Almost Full Length set to: %i" % self.almost_full_length)
         self.log.debug("Mixing parameters set.")
     
     def convertVox(self, vox, vox_tmp):
@@ -501,15 +505,21 @@ class UploadTwonbe(Job):
     
     def process(self):
         self.log.debug("Uploading TwOnBe...")
+        self.log.debug("TwOnBe located: %s" % str(self.tweet['twonbe']))
+        self.log.debug("User: %s" % str(self.tweet['from_user']))
+        self.log.debug("Filtered text: %s" % str(self.tweet['filtered_text']))
         try:
-            mix_twonbe = subprocess.Popen(["ruby", "upload.rb", self.tweet['twonbe'], self.tweet['from_user'],  self.tweet['filtered_text']], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            mix_twonbe = subprocess.Popen(["ruby", "upload.rb", self.tweet['twonbe'], self.tweet['from_user'], self.tweet['filtered_text']], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
             mix_twonbe.wait()
             output = mix_twonbe.communicate()
         except Exception as e:
             raise TwonbeError(e, "%s: %s failed to upload TwOnBe:" % (self.name, self.id))
-        self.log.debug("Twonbe uploaded here: %s" % (output))
-        self.tweet['soundcloud_path'] = output
-        self.log.debug("Queueing cleanup of files:")
+        if "http://" in str(output[0]):
+            self.log.debug("Twonbe uploaded here: %s" % (str(output[0])))
+            self.tweet['soundcloud_path'] = str(output[0])
+        else:
+            raise TwonbeError("UploadError", "Received this error: %s" % str(output))
+        self.log.debug("Queueing cleanup of files:")   
         self.queue.put(CleanupTwonbe(self.id, self.queue, self.tweet))
         self.queue.put(TweetTwonbe(self.id, self.queue, self.tweet))
 
@@ -525,11 +535,13 @@ class TweetTwonbe(Job):
         Job.__init__(self, "TweetTwonbe", id, queue)
     
     def process(self):
+        self.log.debug("Tweeting TwOnBe to user: %s" % (str(self.id)))
         template = self.getTemplate()        
         auth = tweepy.OAuthHandler(self.consumer_token, self.consumer_secret)
         auth.set_access_token(self.access_token, self.access_secret)
         api = tweepy.API(auth)
         tweet = template % (self.tweet['from_user'], self.tweet["soundcloud_path"])
+        self.log.debug("Tweeting: %s" % (tweet))
         tweet = api.update_status(tweet)
         return self.store()
     
@@ -547,14 +559,14 @@ class TweetTwonbe(Job):
         return self.util.redis.sadd("processed", self.tweet['id_str'])
 
 class CleanupTwonbe(Job):
-    def __init__(self, id, queue, cleanup):
+    def __init__(self, id, queue, tweet):
         self.id = id
-        self.cleanup = cleanup
+        self.tweet = tweet
         Job.__init__(self, "TweetTwonbe", id, queue)
         
     def process(self):
-        cleanuplist = [self.tweet['vox_tmp'], self.tweet['vox_tmp2'], self.tweet['beat_tmp'], self.tweet['mix_tmp'], self.tweet['twonbe'], self.tweet['vox_path']]
-        for file in cleanupList:
+        cleanup_list = [self.tweet['vox_tmp'], self.tweet['vox_tmp2'], self.tweet['beat_tmp'], self.tweet['mix_tmp'], self.tweet['twonbe'], self.tweet['vox_path']]
+        for file in cleanup_list:
             self.log.debug("Deleting %s" % (file))
             try:
                 self.util.delete(file)
