@@ -2,8 +2,7 @@ Tweets On Beats - The right beat fo yo tweet, fo shizzle.
 ================================
 
 Installing
--------------------------
-The requirements to set up your environment to work on Vamanos.
+-------------------------.
 
 Tweets on Beats requires the following:
 

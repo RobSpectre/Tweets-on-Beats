@@ -202,9 +202,9 @@ class Test_MixTwonbe(Test_Job):
         
     def test_setMixingParameters(self):
         self.assertEqual(self.mix.bpm, 85)
-        self.assertEqual(self.mix.offset, 5)
+        self.assertEqual(self.mix.offset, 2)
         self.assertEqual(self.mix.voice_length, 2)
-        self.assertEqual(self.mix.almost_full_length, 8)
+        self.assertEqual(self.mix.almost_full_length, 5)
 
     def test_convertVox(self):
         test = self.mix.convertVox("./tests/assets/test_vox.mp3", "/tmp/test_vox_tmp.wav")
@@ -216,13 +216,13 @@ class Test_MixTwonbe(Test_Job):
         test = self.mix.offsetVox("./tests/assets/test_vox_tmp.wav", "/tmp/test_vox_tmp2.wav")
         size = os.path.getsize("/tmp/test_vox_tmp2.wav")
         os.remove("/tmp/test_vox_tmp2.wav")
-        self.assertEqual(size, 1079612)
+        self.assertEqual(size, 892628)
     
     def test_trimBeat(self):
         test = self.mix.trimBeat("./tests/assets/testbeat_85_.wav", "/tmp/test_beat_tmp.wav")
         size = os.path.getsize("/tmp/test_beat_tmp.wav")
         os.remove("/tmp/test_beat_tmp.wav")
-        self.assertEqual(size, 2116880)
+        self.assertEqual(size, 1323080)
     
     def test_mixVoxAndBeat(self):
         test = self.mix.mixVoxAndBeat("./tests/assets/test_vox_tmp2.wav", "./tests/assets/test_beat_tmp.wav", "/tmp/test_mix_tmp.wav")

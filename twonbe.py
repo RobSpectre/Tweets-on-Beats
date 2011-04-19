@@ -432,7 +432,7 @@ class MixTwonbe(Job):
         # Mixing parameters
         self.bpm = int(beat.split("_")[1])
         self.log.debug("BPM set to: %i" % self.bpm)
-        self.offset= int((60.0/(self.bpm / 4))*2)
+        self.offset= int(60.0/(self.bpm / 4))
         self.log.debug("Offset set to: %i" % self.offset)
         self.voice_length = os.path.getsize(vox) / 7452
         self.log.debug("Voice length set to: %i" % self.voice_length)
