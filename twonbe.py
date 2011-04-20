@@ -528,10 +528,10 @@ class TweetTwonbe(Job):
         self.id = id
         self.tweet = tweet
         # Twitter credentials
-        self.consumer_token = "bzdPlHk429kKb3ZsUfhQw"
-        self.consumer_secret = "25hF3WTQ6h9njyqgS2V9a0jQ2MBkePdBwBshA5IajlY"
-        self.access_token = "251275058-4xfy2Bw1MR6fW1KHdz61px1NzPO7ao5i8E46U0NR"
-        self.access_secret = "6O2kYW5osJMXDfvlxu3Bj9nZcSctxNrpNMxAq8HhcbI"      
+        self.consumer_token = "Mw8wRMrrTZDzX3ig1Z71A"
+        self.consumer_secret = "p9AQBMC1Brdpe7RK0SCeSO7kWbnyRmpN66IDmv4J34"
+        self.access_token = "251212628-nnKe54jjBSlgRguRbwBkXXYKPQ82PUXpeoGS2upx"
+        self.access_secret = "qMtYi6Xi5J0ZVaTWYluiuBxkMsoxz7yOrXr6OMWZgw"      
         Job.__init__(self, "TweetTwonbe", id, queue)
     
     def process(self):
