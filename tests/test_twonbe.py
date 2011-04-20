@@ -9,6 +9,7 @@ import logging
 import logging.handlers
 from mock import Mock
 import datetime
+import subprocess
 
 import sys, os
 sys.path.append(os.path.abspath("."))
@@ -253,8 +254,30 @@ class Test_MixTwonbe(Test_Job):
         else:
             test = False
         self.assertTrue(test, "Result was instead: %s" % str(test))
-     
     
+    def test_testBeats(self):
+        beats = os.listdir("./beats")
+        fail = False
+        for beat in beats:
+            beat = os.path.join("./beats", beat)
+            test = subprocess.Popen(["soxi", beat], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            test.wait()
+            result = test.communicate()[0]
+            if "FAIL" in result:
+                fail = True
+                self.assertFalse(fail, "SoX has an issue with beat: %s, %s" % (beat, result))
+                
+    def test_testOutros(self):
+        outro = os.listdir("./outros")
+        fail = False
+        for outro in outro:
+            outro = os.path.join("./outros", outro)
+            test = subprocess.Popen(["soxi", outro], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            test.wait()
+            result = test.communicate()[0]
+            if "FAIL" in result:
+                fail = True
+                self.assertFalse(fail, "SoX has an issue with outro: %s, %s" % (outro, result))
 '''
 Utility Tests
 '''
