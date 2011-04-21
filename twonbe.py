@@ -621,9 +621,6 @@ class Utility(object):
         self.log.debug("Retrieving URI: %s" % (path))
         try:
             r = urllib2.urlopen(request)
-        except urllib2.HTTPError as e:
-            self.log.error("Could not get URI: %s" % (path))
-            return False
         except urllib2.URLError as e:
             self.log.error("Could not reach URI: %s" % (path))
             return False
